@@ -59,6 +59,8 @@ actor SSEClient {
             return AsyncThrowingStream { $0.finish(throwing: APIError.invalidURL) }
         }
         var request = URLRequest(url: url)
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         if let username, let password {
             let credential = "\(username):\(password)"
             if let data = credential.data(using: .utf8) {
