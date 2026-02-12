@@ -122,21 +122,28 @@ struct CodeView: View {
 struct MarkdownPreviewView: View {
     let text: String
 
-    private var markdownWithBreaks: String {
-        // Standard Markdown hard break: two spaces at the end of a line.
+    private var normalizedText: String {
+        // Normalize line endings
         text.replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\n", with: "  \n")
     }
 
     var body: some View {
         ScrollView {
             Group {
-                if let attr = try? AttributedString(markdown: markdownWithBreaks, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                // 1. Try full Markdown parsing first (supports headers, lists, code blocks, etc.)
+                if let attr = try? AttributedString(markdown: normalizedText, options: .init(interpretedSyntax: .full)) {
                     Text(attr)
-                } else if let attr = try? AttributedString(markdown: markdownWithBreaks) {
+                        .textSelection(.enabled)
+                // 2. Fallback: try default parsing (may handle some edge cases differently)
+                } else if let attr = try? AttributedString(markdown: normalizedText) {
                     Text(attr)
+                        .textSelection(.enabled)
+                // 3. Fallback: inline-only with whitespace preservation (for very simple content)
+                } else if let attr = try? AttributedString(markdown: normalizedText, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                    Text(attr)
+                        .textSelection(.enabled)
                 } else {
-                    // 回退时按行渲染，保证换行
+                    // 4. 最终回退：按行渲染，保证至少能看到内容
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(text.components(separatedBy: .newlines).enumerated()), id: \.offset) { _, line in
                             Text(line)
