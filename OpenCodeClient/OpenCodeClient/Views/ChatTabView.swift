@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import MarkdownUI
 
 struct ChatTabView: View {
     @Bindable var state: AppState
@@ -17,27 +18,33 @@ struct ChatTabView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 HStack {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 12) {
                         Button {
                             Task {
                                 await state.createSession()
                             }
                         } label: {
-                            Image(systemName: "plus.circle")
+                            Image(systemName: "plus.circle.fill")
                                 .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundColor(.accentColor)
                         }
                         Button {
                             renameText = state.currentSession?.title ?? ""
                             showRenameAlert = true
                         } label: {
-                            Image(systemName: "pencil.circle")
+                            Image(systemName: "pencil.circle.fill")
                                 .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundColor(.accentColor)
                         }
                         Button {
                             showSessionList = true
                         } label: {
-                            Image(systemName: "list.bullet")
+                            Image(systemName: "list.bullet.circle.fill")
                                 .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundColor(.accentColor)
                         }
                     }
                     Spacer()
@@ -47,19 +54,23 @@ struct ChatTabView: View {
                                 state.selectedModelIndex = index
                             } label: {
                                 Text(preset.displayName)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(state.selectedModelIndex == index ? Color.accentColor : Color.gray.opacity(0.2))
-                                    .foregroundColor(state.selectedModelIndex == index ? .white : .primary)
-                                    .cornerRadius(8)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 7)
+                                    .background(
+                                        state.selectedModelIndex == index
+                                            ? AnyShapeStyle(Color.accentColor.gradient)
+                                            : AnyShapeStyle(Color(.systemGray5))
+                                    )
+                                    .foregroundColor(state.selectedModelIndex == index ? .white : .secondary)
+                                    .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
                 if let status = state.currentSessionStatus {
                     HStack {
                         Circle()
@@ -104,10 +115,19 @@ struct ChatTabView: View {
                     }
                 }
 
-                HStack(alignment: .bottom, spacing: 8) {
-                    TextField("Message", text: $inputText, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...5)
+                Divider()
+                HStack(alignment: .bottom, spacing: 10) {
+                    TextField("Ask anything...", text: $inputText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .lineLimit(3...8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color(.systemGray4), lineWidth: 0.5)
+                        )
 
                     Button {
                         Task {
@@ -127,7 +147,9 @@ struct ChatTabView: View {
                                 .scaleEffect(0.8)
                         } else {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.title2)
+                                .font(.title)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundColor(.accentColor)
                         }
                     }
                     .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
@@ -137,12 +159,14 @@ struct ChatTabView: View {
                             Task { await state.abortSession() }
                         } label: {
                             Image(systemName: "stop.circle.fill")
-                                .font(.title2)
+                                .font(.title)
                                 .foregroundStyle(.red)
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.bar)
             }
             .navigationTitle(state.currentSession?.title ?? "Chat")
             .sheet(isPresented: $showSessionList) {
@@ -210,8 +234,9 @@ struct MessageRowView: View {
 
     @ViewBuilder
     private func markdownText(_ text: String) -> some View {
-        if !text.isEmpty, let attr = try? AttributedString(markdown: text) {
-            Text(attr)
+        if !text.isEmpty {
+            Markdown(text)
+                .textSelection(.enabled)
         } else {
             Text(text)
         }
@@ -230,29 +255,32 @@ struct MessageRowView: View {
     }
 
     private var userMessageView: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(message.parts.filter { $0.isText }, id: \.id) { part in
                 markdownText(part.text ?? "")
-                    .padding(8)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.2))
-            .cornerRadius(8)
+            .background(Color.accentColor.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
 
             if let model = message.info.model {
                 Text("\(model.providerID)/\(model.modelID)")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 4)
             }
         }
     }
 
     private var assistantMessageView: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(message.parts.filter { !$0.isReasoning }, id: \.id) { part in
                 if part.isText {
                     markdownText(part.text ?? "")
-                        .padding(8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if part.isTool {
                     ToolPartView(part: part, state: state)
@@ -274,16 +302,25 @@ struct StreamingReasoningView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text((part.text ?? "").isEmpty ? "Thinking..." : (part.text ?? ""))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
-                .padding(8)
+            HStack(spacing: 6) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Thinking...")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.purple.opacity(0.7))
+            }
+            if let text = part.text, !text.isEmpty {
+                Text(text)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
         }
-        .padding(.trailing, 16)
-        .background(Color.purple.opacity(0.08))
-        .cornerRadius(8)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.purple.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -342,11 +379,14 @@ struct ToolPartView: View {
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "wrench.fill")
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .foregroundStyle(.blue.opacity(0.7))
+                    .font(.caption)
                 Text(part.tool ?? "tool")
+                    .fontWeight(.medium)
                 if let reason = part.toolReason ?? part.metadata?.title, !reason.isEmpty {
-                    Text(": \(reason)")
+                    Text("· \(reason)")
                         .foregroundStyle(.secondary)
                 } else if let status = part.stateDisplay, !status.isEmpty {
                     Text(status)
@@ -379,9 +419,9 @@ struct ToolPartView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(8)
+        .padding(10)
+        .background(Color.blue.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .contextMenu {
             if !part.filePathsForNavigation.isEmpty {
                 ForEach(part.filePathsForNavigation, id: \.self) { path in
@@ -427,14 +467,21 @@ struct PatchPartView: View {
                 state.selectedTab = 1
             }
         } label: {
-            HStack {
-                Image(systemName: "doc.text")
-                Text("\(fileCount) file(s) changed")
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text.fill")
+                    .foregroundStyle(.orange.opacity(0.7))
+                Text("\(fileCount) file\(fileCount == 1 ? "" : "s") changed")
+                    .fontWeight(.medium)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
+            .font(.caption2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
-            .background(Color.orange.opacity(0.1))
-            .cornerRadius(8)
+            .padding(10)
+            .background(Color.orange.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
         .confirmationDialog("打开文件", isPresented: $showOpenFileSheet) {
@@ -460,29 +507,45 @@ struct PermissionCardView: View {
     let onRespond: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text("Permission required")
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .foregroundStyle(.orange.gradient)
+                    .font(.title3)
+                Text("Permission Required")
+                    .font(.subheadline.weight(.semibold))
             }
             Text(permission.description)
-                .font(.subheadline)
-            HStack(spacing: 8) {
-                Button("Approve") {
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Button {
                     onRespond(true)
+                } label: {
+                    Text("Approve")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                Button("Reject") {
+                .tint(.green)
+                Button {
                     onRespond(false)
+                } label: {
+                    Text("Reject")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .tint(.red)
             }
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.15))
-        .cornerRadius(8)
+        .background(Color.orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+        )
     }
 }
