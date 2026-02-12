@@ -27,9 +27,27 @@ actor APIClient {
     private func makeRequest(
         path: String,
         method: String = "GET",
+        queryItems: [URLQueryItem]? = nil,
         body: Data? = nil
     ) async throws -> (Data, URLResponse) {
-        guard let url = URL(string: "\(baseURL)\(path)") else {
+        let url: URL
+        if let queryItems {
+            guard var components = URLComponents(string: "\(baseURL)\(path)") else {
+                throw APIError.invalidURL
+            }
+            components.queryItems = queryItems
+            guard let built = components.url else {
+                throw APIError.invalidURL
+            }
+            url = built
+        } else {
+            guard let built = URL(string: "\(baseURL)\(path)") else {
+                throw APIError.invalidURL
+            }
+            url = built
+        }
+
+        guard url.scheme != nil else {
             throw APIError.invalidURL
         }
         var request = URLRequest(url: url)
@@ -147,21 +165,29 @@ actor APIClient {
         return try JSONDecoder().decode([FileDiff].self, from: data)
     }
 
+    func sessionTodos(sessionID: String) async throws -> [TodoItem] {
+        let (data, _) = try await makeRequest(path: "/session/\(sessionID)/todo")
+        return try JSONDecoder().decode([TodoItem].self, from: data)
+    }
+
     func fileList(path: String = "") async throws -> [FileNode] {
-        let q = path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? path
-        let (data, _) = try await makeRequest(path: "/file?path=\(q)")
+        let (data, _) = try await makeRequest(path: "/file", queryItems: [URLQueryItem(name: "path", value: path)])
         return try JSONDecoder().decode([FileNode].self, from: data)
     }
 
     func fileContent(path: String) async throws -> FileContent {
-        let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? path
-        let (data, _) = try await makeRequest(path: "/file/content?path=\(encoded)")
+        let (data, _) = try await makeRequest(path: "/file/content", queryItems: [URLQueryItem(name: "path", value: path)])
         return try JSONDecoder().decode(FileContent.self, from: data)
     }
 
     func findFile(query: String, limit: Int = 50) async throws -> [String] {
-        let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        let (data, _) = try await makeRequest(path: "/find/file?query=\(q)&limit=\(limit)")
+        let (data, _) = try await makeRequest(
+            path: "/find/file",
+            queryItems: [
+                URLQueryItem(name: "query", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
         return try JSONDecoder().decode([String].self, from: data)
     }
 

@@ -5,6 +5,22 @@
 
 import Foundation
 
+private extension String {
+    func normalizedFilePathForAPI() -> String {
+        var s = trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("a/") || s.hasPrefix("b/") {
+            s = String(s.dropFirst(2))
+        }
+        if let hash = s.firstIndex(of: "#") {
+            s = String(s[..<hash])
+        }
+        if let r = s.range(of: ":[0-9]+(:[0-9]+)?$", options: .regularExpression) {
+            s = String(s[..<r.lowerBound])
+        }
+        return s
+    }
+}
+
 struct Message: Codable, Identifiable {
     let id: String
     let sessionID: String
@@ -45,6 +61,9 @@ struct PartStateBridge: Codable {
     /// 文件路径，来自 state.input.path/file_path/filePath 或 patchText 中的 *** Add File: / *** Update File:
     let pathFromInput: String?
 
+    /// For todowrite: updated todo list (if present)
+    let todos: [TodoItem]?
+
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if let str = try? container.decode(String.self) {
@@ -53,6 +72,7 @@ struct PartStateBridge: Codable {
             inputSummary = nil
             output = nil
             pathFromInput = nil
+            todos = nil
         } else if let dict = try? container.decode([String: AnyCodable].self) {
             if let status = dict["status"]?.value as? String {
                 displayString = status
@@ -69,6 +89,13 @@ struct PartStateBridge: Codable {
             }
             var inp: String?
             var pathInp: String?
+            var todoList: [TodoItem]?
+
+            func decodeTodos(_ obj: Any) -> [TodoItem]? {
+                guard JSONSerialization.isValidJSONObject(obj) else { return nil }
+                guard let data = try? JSONSerialization.data(withJSONObject: obj) else { return nil }
+                return try? JSONDecoder().decode([TodoItem].self, from: data)
+            }
             if let inputVal = dict["input"]?.value {
                 if let inputStr = inputVal as? String {
                     inp = inputStr
@@ -89,6 +116,11 @@ struct PartStateBridge: Codable {
                     }
                     if let d = inputDict {
                         inp = getStr(d, "command") ?? getStr(d, "path")
+
+                        if let todosObj = d["todos"], let decoded = decodeTodos(todosObj) {
+                            todoList = decoded
+                        }
+
                         // Extract file path for write/edit/apply_patch
                         var pathVal = getStr(d, "path") ?? getStr(d, "file_path") ?? getStr(d, "filePath")
                         if pathVal == nil, let patchText = getStr(d, "patchText") {
@@ -109,12 +141,19 @@ struct PartStateBridge: Codable {
             } else {
                 pathInp = nil
             }
+
+            if todoList == nil, let meta = dict["metadata"]?.value as? [String: AnyCodable], let todosObj = meta["todos"]?.value {
+                todoList = decodeTodos(todosObj)
+            }
+
             pathFromInput = pathInp
             title = tit
             inputSummary = inp
             output = out
+            todos = todoList
         } else {
             pathFromInput = nil
+            todos = nil
             throw DecodingError.typeMismatch(PartStateBridge.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Part.state must be String or object"))
         }
     }
@@ -146,6 +185,12 @@ struct Part: Codable, Identifiable {
     /// 输出结果
     var toolOutput: String? { state?.output }
 
+    var toolTodos: [TodoItem] {
+        if let t = metadata?.todos, !t.isEmpty { return t }
+        if let t = state?.todos, !t.isEmpty { return t }
+        return []
+    }
+
     struct FileChange: Codable {
         let path: String
         let additions: Int
@@ -157,6 +202,7 @@ struct Part: Codable, Identifiable {
         let path: String?
         let title: String?
         let input: String?
+        let todos: [TodoItem]?
     }
 
     var isText: Bool { type == "text" }
@@ -168,12 +214,12 @@ struct Part: Codable, Identifiable {
     var filePathsForNavigation: [String] {
         var out: [String] = []
         if let files = files {
-            out.append(contentsOf: files.map(\.path))
+            out.append(contentsOf: files.map { $0.path.normalizedFilePathForAPI() })
         }
-        if let p = metadata?.path, !p.isEmpty {
+        if let p = metadata?.path?.normalizedFilePathForAPI(), !p.isEmpty {
             out.append(p)
         }
-        if let p = state?.pathFromInput, !p.isEmpty, !out.contains(p) {
+        if let p = state?.pathFromInput?.normalizedFilePathForAPI(), !p.isEmpty, !out.contains(p) {
             out.append(p)
         }
         return out

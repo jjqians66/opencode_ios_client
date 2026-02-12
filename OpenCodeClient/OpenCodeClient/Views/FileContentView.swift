@@ -70,6 +70,9 @@ struct FileContentView: View {
                     content = fc.text ?? fc.content
                     isLoading = false
                     print("[FileContentView] loaded type=\(fc.type) contentLen=\(content?.count ?? 0)")
+                    if (content ?? "").isEmpty, fc.type == "text" {
+                        print("[FileContentView] warning: empty text content path=\(filePath)")
+                    }
                     if content == nil && fc.type == "binary" {
                         loadError = "Binary file"
                     }
