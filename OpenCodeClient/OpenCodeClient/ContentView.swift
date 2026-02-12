@@ -45,7 +45,12 @@ struct ContentView: View {
         .preferredColorScheme(state.themePreference == "light" ? .light : state.themePreference == "dark" ? .dark : nil)
         .sheet(item: Binding(
             get: { state.fileToOpenInFilesTab.map { FilePathWrapper(path: $0) } },
-            set: { state.fileToOpenInFilesTab = $0?.path }
+            set: { newValue in
+                state.fileToOpenInFilesTab = newValue?.path
+                if newValue == nil {
+                    state.selectedTab = 0
+                }
+            }
         )) { wrapper in
             NavigationStack {
                 FileContentView(state: state, filePath: wrapper.path)
@@ -53,6 +58,7 @@ struct ContentView: View {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("关闭") {
                                 state.fileToOpenInFilesTab = nil
+                                state.selectedTab = 0
                             }
                         }
                     }
