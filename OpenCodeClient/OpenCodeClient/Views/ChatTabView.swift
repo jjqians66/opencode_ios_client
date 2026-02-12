@@ -93,10 +93,7 @@ struct ChatTabView: View {
                         .padding()
                     }
                     .scrollDismissesKeyboard(.immediately)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    }
+                    .textSelection(.enabled)
                     .onChange(of: scrollAnchor) { _, _ in
                         withAnimation(.easeOut(duration: 0.2)) {
                             proxy.scrollTo("bottom", anchor: .bottom)
@@ -243,6 +240,7 @@ struct MessageRowView: View {
                 .textSelection(.enabled)
         } else {
             Text(text)
+                .textSelection(.enabled)
         }
     }
 
