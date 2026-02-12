@@ -119,31 +119,38 @@ struct CodeView: View {
 }
 
 /// Markdown preview. Native AttributedString 不支持 tables，复杂内容可能解析失败。
+///
+/// Key insight: SwiftUI's `.full` Markdown parsing treats single \n as soft breaks
+/// (standard Markdown spec). To preserve visible line breaks, we convert single \n
+/// to Markdown hard breaks (two trailing spaces + \n), while keeping \n\n as paragraph breaks.
 struct MarkdownPreviewView: View {
     let text: String
 
-    private var normalizedText: String {
-        // Normalize line endings
-        text.replacingOccurrences(of: "\r\n", with: "\n")
+    /// Pre-process: convert single newlines to Markdown hard breaks, preserve paragraph breaks.
+    private var processedMarkdown: String {
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+        // Split by paragraph breaks (double newline), process each paragraph separately
+        let paragraphs = normalized.components(separatedBy: "\n\n")
+        let processed = paragraphs.map { paragraph in
+            // Within each paragraph, convert single \n to hard break (two spaces + \n)
+            paragraph.replacingOccurrences(of: "\n", with: "  \n")
+        }
+        return processed.joined(separator: "\n\n")
     }
 
     var body: some View {
         ScrollView {
             Group {
-                // 1. Try full Markdown parsing first (supports headers, lists, code blocks, etc.)
-                if let attr = try? AttributedString(markdown: normalizedText, options: .init(interpretedSyntax: .full)) {
+                // Try full Markdown parsing with pre-processed hard breaks
+                if let attr = try? AttributedString(markdown: processedMarkdown, options: .init(interpretedSyntax: .full)) {
                     Text(attr)
                         .textSelection(.enabled)
-                // 2. Fallback: try default parsing (may handle some edge cases differently)
-                } else if let attr = try? AttributedString(markdown: normalizedText) {
-                    Text(attr)
-                        .textSelection(.enabled)
-                // 3. Fallback: inline-only with whitespace preservation (for very simple content)
-                } else if let attr = try? AttributedString(markdown: normalizedText, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                // Fallback: inline-only preserving whitespace (no block formatting but line breaks work)
+                } else if let attr = try? AttributedString(markdown: processedMarkdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
                     Text(attr)
                         .textSelection(.enabled)
                 } else {
-                    // 4. 最终回退：按行渲染，保证至少能看到内容
+                    // 最终回退：按行渲染
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(text.components(separatedBy: .newlines).enumerated()), id: \.offset) { _, line in
                             Text(line)
