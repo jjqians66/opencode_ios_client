@@ -5,9 +5,9 @@
 ## 当前状态
 
 - **最后更新**：2026-02-12
-- **Phase**：准备开始 Phase 1 实现
-- **编译**：待验证
-- **测试**：待实现
+- **Phase**：Phase 1 基本完成
+- **编译**：✅ 通过
+- **测试**：✅ 3 个单元测试通过
 
 ## 已完成
 
@@ -15,14 +15,16 @@
 - [x] RFC 更新（MarkdownUI、原生能力、Phase 4 暂不实现）
 - [x] Git 初始化、.gitignore（含 opencode-official）、docs 移至 docs/
 - [x] 初始 commit：docs、OpenCodeClient 脚手架
+- [x] Phase 1 基础：Models、APIClient、SSEClient、AppState
+- [x] Phase 1 UI：Chat Tab、Settings Tab、Files Tab（占位）
+- [x] 单元测试：defaultServerAddress、sessionDecoding、messageDecoding
 
 ## 待办
 
-- [ ] Phase 1：Server 连接、SSE、Session、消息发送、流式渲染
-- [ ] Phase 2：Part 渲染、权限手动批准、主题、prompt_async
+- [ ] Phase 1 完善：SSE 事件解析、流式渲染优化
+- [ ] Phase 2：Part 渲染、权限手动批准、主题、模型切换
 - [ ] Phase 3：文件树、Markdown 预览、文档 Diff、高亮
-- [ ] 测试规划与实现
-- [ ] 编译通过、测试通过
+- [ ] 与真实 OpenCode Server 联调验证
 
 ## 遇到的问题
 

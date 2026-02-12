@@ -2,20 +2,41 @@
 //  ContentView.swift
 //  OpenCodeClient
 //
-//  Created by Yan Wang on 2/12/26.
-//
 
 import SwiftUI
 
 struct ContentView: View {
+    @State private var state = AppState()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            ChatTabView(state: state)
+                .tabItem {
+                    Label("Chat", systemImage: "bubble.left.and.bubble.right")
+                }
+
+            FilesTabView(state: state)
+                .tabItem {
+                    Label("Files", systemImage: "folder")
+                }
+
+            SettingsTabView(state: state)
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
         }
-        .padding()
+        .task {
+            await state.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            Task {
+                await state.refresh()
+                state.connectSSE()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            state.disconnectSSE()
+        }
     }
 }
 
