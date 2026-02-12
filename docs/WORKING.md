@@ -34,7 +34,7 @@
 - [x] Session Todo（task list）：支持 `/session/:id/todo` 拉取 + SSE `todo.updated` 更新；`todowrite` tool 渲染为 Task List 卡片
 - [x] Phase 3：Think Streaming delta（见 [THINK_STREAMING.md](THINK_STREAMING.md)）
 - [x] Phase 3：iPad / Vision Pro 布局：`horizontalSizeClass == .regular` 时左右分栏（左 Files、右 Chat），Settings 为 toolbar 按钮
-- [x] 测试覆盖：SSE 事件结构（session.status、permission.asked、todo.updated、message.updated）、路径规范化（a/b 前缀、#、:line:col）
+- [x] 测试覆盖：SSE 事件结构、session 过滤、PathNormalizer、路径规范化
 
 ## 待办
 
