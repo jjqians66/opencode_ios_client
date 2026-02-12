@@ -27,11 +27,16 @@ struct ContentView: View {
         }
         .task {
             await state.refresh()
+            if state.isConnected {
+                state.connectSSE()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task {
                 await state.refresh()
-                state.connectSSE()
+                if state.isConnected {
+                    state.connectSSE()
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in

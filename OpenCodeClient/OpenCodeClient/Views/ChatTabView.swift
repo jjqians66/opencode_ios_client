@@ -126,6 +126,15 @@ struct ChatTabView: View {
 struct MessageRowView: View {
     let message: MessageWithParts
 
+    @ViewBuilder
+    private func markdownText(_ text: String) -> some View {
+        if !text.isEmpty, let attr = try? AttributedString(markdown: text) {
+            Text(attr)
+        } else {
+            Text(text)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if message.info.isUser {
@@ -139,7 +148,7 @@ struct MessageRowView: View {
     private var userMessageView: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(message.parts.filter { $0.isText }, id: \.id) { part in
-                Text(part.text ?? "")
+                markdownText(part.text ?? "")
                     .padding(8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,17 +167,18 @@ struct MessageRowView: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(message.parts, id: \.id) { part in
                 if part.isText {
-                    Text(part.text ?? "")
+                    markdownText(part.text ?? "")
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if part.isTool {
                     HStack {
                         Image(systemName: "wrench.fill")
                         Text(part.tool ?? "tool")
-                        Text(part.state ?? "")
+                        Text(part.stateDisplay ?? "")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
                     .background(Color.blue.opacity(0.1))
                     .cornerRadius(8)

@@ -7,7 +7,7 @@
 - **最后更新**：2026-02-12
 - **Phase**：Phase 1 基本完成
 - **编译**：✅ 通过
-- **测试**：✅ 3 个单元测试通过
+- **测试**：✅ 9 个单元测试通过
 
 ## 已完成
 
@@ -18,11 +18,11 @@
 - [x] 初始 commit：docs、OpenCodeClient 脚手架
 - [x] Phase 1 基础：Models、APIClient、SSEClient、AppState
 - [x] Phase 1 UI：Chat Tab、Settings Tab、Files Tab（占位）
-- [x] 单元测试：defaultServerAddress、sessionDecoding、messageDecoding
+- [x] Phase 1 完善：SSE 事件解析、流式更新、Part.state 兼容、Markdown 渲染、工具调用全行显示
+- [x] 单元测试：defaultServerAddress、sessionDecoding、messageDecoding、sseEvent、partDecoding
 
 ## 待办
 
-- [ ] Phase 1 完善：SSE 事件解析、流式渲染优化
 - [ ] Phase 2：Part 渲染、权限手动批准、主题、模型切换
 - [ ] Phase 3：文件树、Markdown 预览、文档 Diff、高亮
 - [ ] 与真实 OpenCode Server 联调验证
@@ -35,6 +35,15 @@
    - 用户需在弹窗中要点「允许」才能连接
 
 2. **发送后卡住**：发送失败时无反馈，输入框已清空导致用户不知道失败。修复：发送失败时恢复输入、显示错误 alert、发送中显示 loading
+
+3. **发送后无实时更新**：发送成功、web 端已有回应，但 iOS 端需重启才能看到。原因：
+   - SSE 仅在 `willEnterForegroundNotification` 时连接，首次启动时未连接
+   - 部分事件（如 `server.connected`）无 `directory` 字段，解析失败
+   - 修复：在 `refresh()` 成功后调用 `connectSSE()`；`SSEEvent.directory` 改为可选；发送成功后启动 60 秒轮询（每 2 秒 loadMessages）作为 fallback
+
+4. **loadMessages 解析失败**：LLM 输出 thinking delta 时，`Part.state` 期望 String 但 API 返回 object（ToolState）。报错：`Expected to decode String but found a dictionary`。修复：新增 `PartStateBridge`，支持 state 为 String 或 object，object 时提取 `status`/`title` 用于 UI 显示
+
+5. **Unable to simultaneously satisfy constraints**：键盘相关 (TUIKeyboardContentView, UIKeyboardImpl) 的约束冲突。来自系统键盘，非应用代码，通常无需修复。
 
 ## 决策记录
 

@@ -30,6 +30,7 @@ final class AppState {
     private let apiClient = APIClient()
     private let sseClient = SSEClient()
     private var sseTask: Task<Void, Never>?
+    private var pollingTask: Task<Void, Never>?
 
     var selectedModel: ModelPreset? {
         guard modelPresets.indices.contains(selectedModelIndex) else { return nil }
@@ -127,10 +128,22 @@ final class AppState {
         let model = selectedModel.map { Message.ModelInfo(providerID: $0.providerID, modelID: $0.modelID) }
         do {
             try await apiClient.promptAsync(sessionID: sessionID, text: text, model: model)
+            startPollingAfterSend()
             return true
         } catch {
             sendError = error.localizedDescription
             return false
+        }
+    }
+
+    private func startPollingAfterSend() {
+        pollingTask?.cancel()
+        pollingTask = Task {
+            for _ in 0..<30 {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                await loadMessages()
+            }
         }
     }
 
@@ -178,7 +191,7 @@ final class AppState {
                 }
             }
         case "message.updated", "message.part.updated":
-            if let sessionID = currentSessionID {
+            if currentSessionID != nil {
                 await loadMessages()
             }
         default:

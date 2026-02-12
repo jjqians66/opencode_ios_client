@@ -6,7 +6,7 @@
 import Foundation
 
 struct SSEEvent: Codable {
-    let directory: String
+    let directory: String?
     let payload: SSEPayload
 }
 
@@ -77,9 +77,10 @@ actor SSEClient {
                             if buffer.hasPrefix("data: ") {
                                 let json = String(buffer.dropFirst(6)).trimmingCharacters(in: .whitespaces)
                                 if json != "[DONE]", !json.isEmpty,
-                                   let data = json.data(using: .utf8),
-                                   let event = try? JSONDecoder().decode(SSEEvent.self, from: data) {
-                                    continuation.yield(event)
+                                   let data = json.data(using: .utf8) {
+                                    if let event = try? JSONDecoder().decode(SSEEvent.self, from: data) {
+                                        continuation.yield(event)
+                                    }
                                 }
                             }
                             buffer = ""
