@@ -122,8 +122,8 @@ struct ChatToolbarView: View {
 private extension ModelPreset {
     var compactLabel: String {
         switch modelID {
-        case "gpt-5.2": return "GPT"
-        case "gpt-5.3-codex": return "Codex"
+        case "gpt-5.3-codex": return "GPT"
+        case "gpt-5.3-codex-spark": return "Spark"
         case "anthropic/claude-opus-4-6": return "Opus"
         case "glm-5": return "GLM"
         default:

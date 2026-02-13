@@ -90,8 +90,8 @@
 - [x] **Session 列表按更新时间排序**：使用 `sortedSessions` 按 `time.updated` 降序排列
 - [x] **Session 行时间显示按更新时间**：Session 列表的“xx 分钟前”改为 `time.updated`
 - [x] **Session 列表去蓝色**：列表文本使用中性色（灰），当前 Session 用背景高亮
-+- [x] **Session 操作按钮顺序调整**：Chat 顶部 toolbar 左侧按钮顺序改为 Session 列表 → 重命名 → Compact → 新建 Session
- - [x] **切换 Session 空白 bug 修复**：切换时先清空 messages/parts/streaming 状态再加载新 session 数据
+- [x] **Session 操作按钮顺序调整**：Chat 顶部 toolbar 左侧按钮顺序改为 Session 列表 → 重命名 → Compact → 新建 Session
+- [x] **切换 Session 空白 bug 修复**：切换时先清空 messages/parts/streaming 状态再加载新 session 数据
 - [x] **服务端错误信息展示**：assistant message 带 `error.data.message` 时在消息中以红色卡片显示
 - [x] **iPad 侧边栏上下分区**：左侧改为上 Files（File Tree）下 Sessions（列表点击切换右侧 Chat Session）
 - [x] **Workspace 左栏等高**：iPad Workspace 左栏 Files/Sessions 两块高度 1:1
@@ -116,6 +116,10 @@
 - [x] **Code Review 1.3**：SSE message.updated 按 sessionID 过滤
 - [x] **Code Review 1.4**：PathNormalizer 统一路径规范化（Utils/PathNormalizer.swift）
 - [ ] **Phase 4：iPad / Vision Pro 布局优化**：可考虑（可选）Preview 栏支持“固定/关闭当前文件”等更细粒度控制
+- [x] **模型替换（OpenAI）**：GPT-5.2 替换为 GPT-5.3 Codex Spark（短名 `Spark`），并将 GPT-5.3 Codex 的 iPhone 短名改为 `GPT`
+- [ ] **iPhone 发热排查与优化**：做一次热点 code review，优先处理明显耗电/高频更新点；若不明显，补日志并提供复现与采样步骤
+- [ ] **Activity Row 逐 turn 保留校验**：每个 user message 结束后保留 completed 行作为最后一行；新消息到来再创建新 running 行
+- [ ] **全量 Codebase Review 文档重写**：删除旧 `docs/code_review.md` 并按当前代码重写，聚焦架构/可重构点/明显性能与安全问题
 
 ### Code Review 改进（来自 code_review.md）
 
@@ -162,7 +166,7 @@
 
 用户指定模型对应：
 - OpenAI GPT-5.3 Codex：✅ `openai` / `gpt-5.3-codex`
-- OpenAI GPT-5.2：✅ `openai` / `gpt-5.2`
+- OpenAI GPT-5.3 Codex Spark：✅ `openai` / `gpt-5.3-codex-spark`
 - POE Opus Claude 4.6：✅ `poe` / `anthropic/claude-opus-4-6`
 - z.ai coding plan GLM5：✅ `zai-coding-plan` / `glm-5`
 

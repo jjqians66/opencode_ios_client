@@ -302,7 +302,7 @@ iOS App → 公网 VPS (SSH) → VPS:18080 → 家里 OpenCode (127.0.0.1:4096)
 
 #### 4.4.3 Model Presets
 
-**当前实现**：固定 4 个预设（GPT-5.2、GPT-5.3 Codex Spark、Opus 4.6、GLM5），无导入、无排序。发送消息时在 body 中携带 `model: { providerID, modelID }`。
+**当前实现**：固定 4 个预设（GPT-5.3 Codex、GPT-5.3 Codex Spark、Opus 4.6、GLM5），无导入、无排序。发送消息时在 body 中携带 `model: { providerID, modelID }`。
 
 #### 4.4.3 Workspace
 
