@@ -43,6 +43,11 @@
 - [x] 语音输入（AI Builder Speech Recognition）：录音（mic 权限）→ 调用 `/v1/audio/transcriptions` → 文本追加到输入框
 - [x] iPad 外接键盘：回车发送（submitLabel/send + keyboardShortcut Return）
 - [x] 网络安全边界：WAN 禁止 http://（强制 https://）；Settings 展示 scheme 与提示
+- [x] 3.1 apply_patch 显示为 "patch"（ToolPartView.toolDisplayName）
+- [x] 3.2 Settings HTTP 时 scheme 橙色 + info 图标
+- [x] 1.1 AppState 详细规划（code_review 三阶段细化）
+- [x] Bug: tool layout — thinking 并入最后一条 MessageRowView，不另起行打断网格
+- [x] Bug: Diff/文件预览 — 横向滚动、minWidth 填满、textSelection
 
 ## 待办
 

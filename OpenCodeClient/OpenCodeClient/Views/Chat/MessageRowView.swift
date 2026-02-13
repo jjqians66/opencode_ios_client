@@ -9,6 +9,7 @@ import MarkdownUI
 struct MessageRowView: View {
     let message: MessageWithParts
     @Bindable var state: AppState
+    var streamingPart: Part? = nil
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var useGridCards: Bool { sizeClass == .regular }
@@ -138,6 +139,9 @@ struct MessageRowView: View {
                         }
                     }
                 }
+            }
+            if let streamingPart {
+                StreamingReasoningView(part: streamingPart, state: state)
             }
         }
     }

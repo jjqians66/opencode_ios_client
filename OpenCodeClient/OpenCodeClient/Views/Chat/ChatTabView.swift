@@ -116,10 +116,11 @@ struct ChatTabView: View {
                                 }
                             }
                         ForEach(state.messages, id: \.info.id) { msg in
-                            MessageRowView(message: msg, state: state)
-                        }
-                        if let streamingPart = streamingReasoningPart {
-                            StreamingReasoningView(part: streamingPart, state: state)
+                            MessageRowView(
+                                message: msg,
+                                state: state,
+                                streamingPart: msg.info.id == state.messages.last?.info.id ? streamingReasoningPart : nil
+                            )
                         }
                             Color.clear
                                 .frame(height: 1)

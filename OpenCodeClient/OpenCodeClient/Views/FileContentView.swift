@@ -111,6 +111,7 @@ struct CodeView: View {
                     }
                 }
                 .padding(.vertical, 8)
+                .frame(minWidth: 400, alignment: .leading)
             }
         }
     }

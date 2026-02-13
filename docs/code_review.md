@@ -37,16 +37,19 @@ Review 范围以 iOS 端为主（`OpenCodeClient/`），以及与 OpenCode serve
    - 新建 `Services/OpenCodeService`（或 `OpenCodeAPI`）封装：health/sessions/messages/files/todos/abort/summarize…
    - `AppState` 只持有一个 service 实例，并把所有 `apiClient.*` 访问迁移到 service
    - 好处：把“怎么发请求/怎么组 URL/怎么处理错误”集中，AppState 只做流程
+   - **细化**：先列出 `APIClient` 当前所有对外方法，逐一迁移到 `OpenCodeService`；`OpenCodeService` 持有 `APIClient` 实例；`AppState` 调用 `service.health()` 等，不再直接 `apiClient.health()`
 
 2. **把 SSE 与 polling 策略抽成 coordinator（可 mock）**
    - 新建 `SyncCoordinator`：负责 connect/reconnect/backoff、message.updated 后的刷新策略、发送后的 fallback polling
    - `SyncCoordinator` 向外暴露 `AsyncStream<DomainEvent>`（例如 `.messagesChanged(sessionID)`、`.permissionAsked(...)`）
    - `AppState` 只做订阅 + 调用 service 拉取 + 写入 stores
+   - **细化**：`connectSSE()`、`disconnectSSE()`、`startPollingAfterSend()` 逻辑迁入 `SyncCoordinator`；`AppState` 在 `refresh()` 时创建 coordinator、订阅 event、调用 `loadMessages()` 等
 
 3. **引入 reducer/handler（提升可测性）**
    - 新建 `SSEEventReducer`：输入 `SSEEvent` + `currentSessionID` → 输出 `DomainEvent`（或 `[]`）
    - 这层可以纯函数化，单测覆盖：session 过滤、delta 合并触发条件、todo 更新等
    - 最终结果：`AppState` 变薄，测试重点转移到 reducer/service/coordinator
+   - **细化**：`handleSSEEvent` 内 switch 逻辑先迁到 `SSEEventReducer.reduce(event, currentSessionID) -> [DomainEvent]`；`AppState` 只消费 `DomainEvent` 并更新 stores
 
 补充观察（当前代码状态）：
 

@@ -26,8 +26,15 @@ struct SettingsTabView: View {
                         .textContentType(.password)
 
                     if let scheme = info.scheme {
-                        LabeledContent("Scheme", value: scheme.uppercased())
-                            .foregroundStyle(scheme == "http" ? .orange : .secondary)
+                        HStack(spacing: 4) {
+                            LabeledContent("Scheme", value: scheme.uppercased())
+                                .foregroundStyle(scheme == "http" ? .orange : .secondary)
+                            if scheme == "http" {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundStyle(.orange)
+                                    .help("Use HTTPS for any non-LAN address. HTTP is insecure.")
+                            }
+                        }
                     }
 
                     if info.isLocal {

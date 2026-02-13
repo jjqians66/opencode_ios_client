@@ -102,39 +102,47 @@ struct DiffDetailView: View {
     let diff: FileDiff
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("File: \(diff.file)")
-                    .font(.headline)
-                Text("+\(diff.additions) -\(diff.deletions)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !diff.before.isEmpty || !diff.after.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Before:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(diff.before)
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(4)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("After:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(diff.after)
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
-                            .background(Color.green.opacity(0.1))
-                            .cornerRadius(4)
+        ScrollView(.horizontal, showsIndicators: true) {
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("File: \(diff.file)")
+                        .font(.headline)
+                    Text("+\(diff.additions) -\(diff.deletions)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !diff.before.isEmpty || !diff.after.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Before:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(diff.before)
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                                .padding(8)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .frame(minWidth: 280, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("After:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(diff.after)
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                                .padding(8)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .frame(minWidth: 280, alignment: .leading)
                     }
                 }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
+            .frame(minWidth: 300)
         }
         .navigationTitle(diff.file)
         .navigationBarTitleDisplayMode(.inline)
