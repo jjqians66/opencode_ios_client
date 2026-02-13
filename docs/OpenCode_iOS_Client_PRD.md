@@ -272,7 +272,7 @@ iOS App → 公网 VPS (SSH) → VPS:18080 → 家里 OpenCode (127.0.0.1:4096)
 | VPS Host | VPS 地址 | - |
 | SSH Port | SSH 端口 | 22 |
 | Username | SSH 用户名 | - |
-| Remote Port | VPS 上转发的端口 | 18080 |
+| VPS Port | VPS 上转发的端口 | 18080 |
 
 **密钥管理**：
 
@@ -286,7 +286,7 @@ iOS App → 公网 VPS (SSH) → VPS:18080 → 家里 OpenCode (127.0.0.1:4096)
 1. 打开 Settings → SSH Tunnel
 2. App 自动生成密钥对
 3. 复制公钥，SSH 到 VPS 添加到 `~/.ssh/authorized_keys`
-4. 填写 VPS 地址、用户名、远程端口
+4. 填写 VPS 地址、用户名、VPS 端口
 5. 开启 SSH Tunnel 开关
 6. Server Address 改为 `127.0.0.1:4096`（通过隧道访问）
 

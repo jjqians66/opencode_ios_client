@@ -106,7 +106,7 @@ struct SettingsTabView: View {
                             }
                         
                         HStack {
-                            Text("Remote Port")
+                            Text("VPS Port")
                             Spacer()
                             TextField("", value: $sshConfig.remotePort, formatter: NumberFormatter())
                                 .keyboardType(.numberPad)
@@ -116,6 +116,11 @@ struct SettingsTabView: View {
                                     state.sshTunnelManager.config.remotePort = newValue
                                 }
                         }
+
+                        Button("Set Server Address to 127.0.0.1:4096") {
+                            state.serverURL = "127.0.0.1:4096"
+                        }
+                        .buttonStyle(.plain)
 
                         HStack {
                             Text("Status")
@@ -140,21 +145,22 @@ struct SettingsTabView: View {
                             }
                         }
 
-                        Button("View / Copy Public Key") {
-                            do {
-                                publicKeyForSheet = try state.sshTunnelManager.generateOrGetPublicKey()
-                                showPublicKeySheet = true
-                            } catch {
-                                publicKeyForSheet = ""
-                                // Error handled by manager (status)
-                            }
-                        }
-                        .buttonStyle(.plain)
                     }
+
+                    Button("View / Copy Public Key") {
+                        do {
+                            publicKeyForSheet = try state.sshTunnelManager.generateOrGetPublicKey()
+                            showPublicKeySheet = true
+                        } catch {
+                            publicKeyForSheet = ""
+                            // Error handled by manager (status)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 } header: {
                     Text("SSH Tunnel")
                 } footer: {
-                    Text("Connect to your OpenCode server via SSH tunnel through a VPS. First, copy your public key and add it to the VPS's ~/.ssh/authorized_keys.")
+                    Text("Forwards iOS 127.0.0.1:4096 to VPS 127.0.0.1:<VPS Port>. 1) View/copy your public key and add it to the VPS's ~/.ssh/authorized_keys. 2) Set Server Address to 127.0.0.1:4096.")
                         .font(.caption)
                 }
 

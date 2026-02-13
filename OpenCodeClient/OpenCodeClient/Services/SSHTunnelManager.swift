@@ -41,6 +41,22 @@ struct SSHTunnelConfig: Codable, Equatable {
     var isValid: Bool {
         !host.isEmpty && !username.isEmpty && port > 0 && remotePort > 0
     }
+
+    var validationError: String? {
+        if host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "VPS Host is required"
+        }
+        if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "SSH Username is required"
+        }
+        if port <= 0 {
+            return "SSH Port must be > 0"
+        }
+        if remotePort <= 0 {
+            return "VPS Port must be > 0"
+        }
+        return nil
+    }
     
     static let `default` = SSHTunnelConfig()
 }
@@ -72,8 +88,8 @@ final class SSHTunnelManager: ObservableObject {
     }
     
     func connect() async {
-        guard config.isValid else {
-            status = .error("Invalid configuration")
+        if let err = config.validationError {
+            status = .error(err)
             return
         }
 
