@@ -102,7 +102,7 @@
 - [x] **3.2 Error Presentation**：统一错误处理模式
 - [x] **3.3 Magic Numbers**：提取常量（列宽比例、动画时长等）
 - [x] **3.4 Test Coverage**：添加 AppState 层面测试
-- [ ] **3.5 View Decomposition**：拆分 ChatTabView
+- [x] **3.5 View Decomposition**：拆分 ChatTabView
 - [ ] **3.1 AppState Size**：继续提取 Coordinator
 - [ ] **4.1 Memory Leaks**：SSE 连接 deinit 处理
 - [x] **4.4 Default Server**：修改默认服务器配置
