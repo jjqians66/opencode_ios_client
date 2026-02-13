@@ -127,6 +127,7 @@ iPhone 采用底部 Tab Bar，三个 Tab：
 在 Chat 顶部右侧（模型切换条与齿轮之间）显示一个**环形进度**，表示当前 session 最近一次生成时的上下文窗口占用情况。
 
 - **数据来源**：`GET /session/:id/message` 返回的 assistant message `info.tokens.total`（以及 input/output/reasoning/cache），并结合 `GET /config/providers` 中该 `providerID/modelID` 的 `limit.context`。
+- **Provider Config 加载**：`GET /config/providers` 结果会缓存；若未加载/为空，点击 ring 时应自动触发加载并显示 loading；失败时在 sheet 中展示错误信息，而不是只显示 “Provider config not loaded”。
 - **无数据时**：显示灰色空环（不显示数值），点击可打开详情但内容显示 "No usage data"。
 - **颜色策略**：< 70% 正常色；70-90% 警告色；> 90% 危险色（避免用户在 iOS 端“盲发”导致 token 超限）。
 - **点击交互**：点击环形进度弹出一个 sheet（iPhone/iPad 都可用），展示：
@@ -174,6 +175,8 @@ OpenCode 绝大多数情况下不会请求 permission，若出现 `permission.as
 #### 4.2.4 输入框
 
 底部固定输入框，支持多行文本。右侧为发送按钮和麦克风按钮。Session 操作（新建、重命名、列表、Compact）在 Chat 顶部 toolbar，不在输入框左侧。
+
+**草稿持久化（Draft Persistence）**：未发送的输入内容按 sessionID 保存（本地持久化），切换到其他 session 再切回时仍可恢复；发送成功后清空草稿。
 
 **语音输入（Speech Recognition）**：输入框右侧麦克风按钮。点击开始录音，再次点击停止并调用 AI Builder `/v1/audio/transcriptions` 转写，将文本追加到输入框。Token 和 Base URL 在 Settings → Speech Recognition 配置，存 Keychain，不提交到 git。
 

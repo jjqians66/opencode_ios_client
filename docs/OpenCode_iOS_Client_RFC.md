@@ -177,6 +177,7 @@ final class AppState {
 - **Session 列表**：列出 workspace 下所有已有 Session，作为连接与解析的验证手段
 - **权限**：`permission.asked` 时展示卡片，用户手动批准/拒绝，调用 `POST /session/:id/permissions/:permissionID`
 - **输入**：支持多行，发送用 `prompt_async`；busy 时消息由服务端排队
+- **草稿**：按 sessionID 持久化未发送输入；切换 session 可恢复；发送成功后清空
 - **语音输入**：输入框右侧麦克风按钮；录音后调用 AI Builder `POST /v1/audio/transcriptions` 转写，结果追加到输入框；Base URL 与 token 在 Settings → Speech Recognition 配置并存 Keychain
 - **Abort**：提供按钮调用 `POST /session/:id/abort`
 
