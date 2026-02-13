@@ -7,7 +7,7 @@
 - **最后更新**：2026-02-12
 - **Phase**：Phase 3 完成（Think Streaming + iPad 分栏）
 - **编译**：✅ 通过
-- **测试**：✅ 52 个单元测试通过
+- **测试**：✅ 55 个单元测试通过
 
 ## 已完成
 
@@ -36,6 +36,10 @@
 - [x] Phase 3：iPad / Vision Pro 布局：`horizontalSizeClass == .regular` 时左右分栏（左 Files、右 Chat），Settings 为 toolbar 按钮
 - [x] iPad 预览优化：sheet 使用 `.presentationDetents([.large])` 大尺寸；Files 中点击文件弹 sheet（左栏窄不宜内联）
 - [x] 测试覆盖：SSE 事件结构、session 过滤、PathNormalizer、路径规范化
+- [x] iPad 消息流密度优化：tool/patch/permission 卡片在 iPad 三列网格横向填充；text part 仍整行显示
+- [x] PathNormalizer 加固：percent-encoding 解码、file:// 兼容、最基本的 ../ 防御、绝对路径 → workspace 相对路径解析（修复 tool read 预览空内容类问题）
+- [x] 文档同步：PRD/RFC 补充 iPad 三列网格说明；lessons.md 增加“PRD/RFC→code→test→build/test”的工作流
+- [x] code_review.md 更新：补齐全 repo review 新发现项 + Security Review（准备推 GitHub 前检查）
 
 ## 待办
 

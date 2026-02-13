@@ -142,34 +142,23 @@ final class AppState {
 
 - **布局**：OpenCode 风格，无左右气泡；人类消息灰色背景，AI 消息白/透明
 - **Part 渲染**：text (Markdown)、reasoning (折叠)、tool (卡片)、patch (跳转 Files)。tool/patch 若含文件路径，点击可「在 File Tree 中打开」预览；其中 `todowrite` tool 需渲染为 Task List（todo）视图，并响应 SSE `todo.updated`。Todo 仅在 tool 卡片内展示，不在 Chat 顶部常驻（方案 B）
+- **iPad 大屏密度**：在 `horizontalSizeClass == .regular` 时，tool/patch/permission 卡片可用三列网格横向填充；text part 仍整行显示（避免阅读断裂）
 - **流式（Think Streaming）**：`message.part.updated` 带 `delta` 时追加到对应 Part，实现打字机效果；无 delta 时全量 reload。Tool 卡片：running 展开、completed 默认收起
 - **主题**：跟随 `@Environment(\.colorScheme)`，Light/Dark
 
-#### 5.1.1 Chat 文字选择（textSelection）— 设计分析
+#### 5.1.1 Chat 文字选择（textSelection）— 设计
 
-**现状**：Chat 区域使用 `.textSelection(.enabled)` 支持复制。实现位置：
-- `ScrollView` 整体（ChatTabView）
-- `MessageRowView` 内 Markdown、Text
-- `ToolPartView` 内 Reason、Command/Input、Output 的 Text
-- `StreamingReasoningView`
-- `TodoListInlineView` 内 todo 内容
+**原则**：仅对两类内容启用选择，其余区域禁用，避免手势冲突、缩小可选范围。
 
-**「选不动」的可能原因**（待验证）：
-1. **Button 包裹**：`PatchPartView` 整块为 Button，内部「X files changed」无法选择
-2. **LabeledContent**：ToolPartView 的 `LabeledContent("Path", value: path)` 未显式 `.textSelection(.enabled)`，路径可能不可选
-3. **DisclosureGroup**：折叠时内容不可见；展开时 label 区域（tool 名 + 状态）可能被点击手势抢占
-4. **平台差异**：有报告称 iOS 18 下 List 内 textSelection 存在异常，需在真机/模拟器验证
+| 区域 | 是否可选 | 说明 |
+|------|----------|------|
+| 用户消息正文 | ✅ | 用户打出去的消息，可复制 |
+| AI 最终回复（text part） | ✅ | AI 的 response 文本，可复制 |
+| 思考过程（reasoning） | ❌ | 包括 streaming 时的 think |
+| 工具调用（tool 卡片） | ❌ | Reason、Command/Input、Output、Path、todo 等 |
+| Patch 卡片 | ❌ | 按钮为主，无需选择 |
 
-**交互冲突风险**（Code Review 2.2）：
-- 长按选择文字可能干扰按钮点击（tool 卡片、patch 卡片、权限卡片）
-- `scrollDismissesKeyboard(.immediately)` 下，点空白收键盘行为可能不直观
-
-**待决策**：
-- 方案 A：保持现状，补显式「Done/收起键盘」入口，在按钮区域验证手势冲突
-- 方案 B：对按钮区域局部禁用 textSelection（如 `.textSelection(.disabled)` 包裹 Button）
-- 方案 C：仅对纯文本区域启用选择，对 tool/patch 卡片内容单独评估
-
-**建议**：先补齐 `LabeledContent` 的 textSelection，再在真机验证各区域是否可选；根据结果决定是否采纳方案 B/C。
+**实现**：`MessageRowView` 的 `markdownText` 对用户消息和 AI text part 使用 `.textSelection(.enabled)`；`ScrollView` 不设全局 textSelection；`ToolPartView`、`StreamingReasoningView`、`TodoListInlineView` 不启用 textSelection。
 
 #### 5.1.2 Think Streaming 实现
 
@@ -220,7 +209,7 @@ final class AppState {
 | 编号 | 状态 | 说明 |
 |------|------|------|
 | 2.1 | ✅ | UserDefaults + Keychain 持久化凭证 |
-| 2.2 | 待决策 | Chat 文字选择 — 见 §5.1.1 分析 |
+| 2.2 | ✅ | Chat 文字选择 — 仅用户消息 + AI text part 可选，见 RFC §5.1.1 |
 | 2.3 | ✅ | ChatTabView 拆分至 Views/Chat/*.swift |
 | 2.4 | ✅ | Todo 方案 B：仅 tool 卡片内展示 |
 | 2.5 | ✅ | 移除 debug print |

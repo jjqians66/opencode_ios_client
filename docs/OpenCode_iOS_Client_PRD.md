@@ -139,6 +139,8 @@ iPhone 采用底部 Tab Bar，三个 Tab：
 - `patch` — 文件变更摘要卡片，显示修改的文件列表，点击可跳转到 Files Tab 的 File Tree 中打开该文件预览
 - `tool`（write/edit/apply_patch/read_file 等）— 若 part 含文件路径（metadata.path、state.input.path、files 数组、或 patchText 解析），点击可弹出选项「在 File Tree 中打开」，直接打开文件预览
 
+**大屏布局（iPad / Vision Pro）补充**：为了利用横向空间，`tool` / `patch` / permission 卡片可采用 **三列网格**横向填充（不足自动换行）；但 `text`（最终回答）仍按整行展示，避免阅读断裂。
+
 **流式更新（Think Streaming）**：行为与官方 Web 客户端对齐。SSE 推送 `message.part.updated` 时，若有 `delta` 字段，客户端增量追加到对应 text/reasoning Part，实现打字机效果；若无 delta 则全量 reload。使用 `messageID` + `partID` 定位 Part。详见 [THINK_STREAMING.md](THINK_STREAMING.md)。**注**：Tool output 的实时流式（如 terminal 输出逐行）当前 API 不支持，output 仅在 completed 时一次性返回。
 
 **Session 状态指示器**：消息流顶部显示当前 session 状态（idle / busy / error）。状态来源于 `session.status` SSE 事件。busy 时显示进度动画。
