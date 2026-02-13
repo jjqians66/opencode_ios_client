@@ -131,6 +131,21 @@ struct MessageRowView: View {
                     }
                 }
             }
+            if let err = message.info.errorMessageForDisplay {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.red.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .textSelection(.enabled)
+            }
             if let streamingPart {
                 StreamingReasoningView(part: streamingPart, state: state)
             }

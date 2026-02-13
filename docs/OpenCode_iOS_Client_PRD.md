@@ -100,14 +100,14 @@ iPhone 采用底部 Tab Bar，三个 Tab：
 │     📁 Files Preview     │          💬 Chat                 │
 │     （左半屏）            │          （右半屏）             │
 │                          │                                  │
-│  文件树 / Session Changes │  消息流 + 输入框                 │
+│  文件树                  │  消息流 + 输入框                 │
 │  文件内容 / Markdown 预览  │                                  │
 │                          │                                  │
 └──────────────────────────┴──────────────────────────────────┘
 ```
 
 **设计要点**：
-- **左半屏**：Files 预览（文件树、Session Changes、文件内容、Markdown 预览）
+- **左半屏**：Files 预览（文件树、文件内容、Markdown 预览）
 - **右半屏**：Chat（消息流、输入框、与 iPhone 一致）
 - **Settings**：作为独立按钮加入第一行 toolbar（与 Session 操作、模型切换并列），点击以 sheet 或 navigation push 打开
 - **优势**：大屏上 Chat 与 Files 并排，无需切换 Tab 即可同时查看对话与文件
@@ -207,7 +207,7 @@ OpenCode 绝大多数情况下不会请求 permission，若出现 `permission.as
 
 **两种入口**：
 
-**Session Diff**：Files Tab 顶部有一个 segmented control，在 "File Tree" 和 "Session Changes" 之间切换。选择 "Session Changes" 时，显示当前 session 的所有文件变更列表（`GET /session/:id/diff`），每个条目显示文件名和 +N/-M 统计。点击进入 diff 详情。
+**Session Diff**：暂不在 iOS 客户端展示（server 端 diff API 在部分情况下返回空数组）。
 
 **单文件 Diff**：在文件树中点击有变更标记的文件时，如果该文件有 uncommitted changes，内容查看页面自动切换到 diff 模式。
 
@@ -225,7 +225,7 @@ Diff 渲染采用 unified diff 格式（类似 GitHub），绿色背景表示新
 
 #### 4.4.2 Model Presets
 
-**当前实现**：固定 3 个预设（GPT-5.2、Opus 4.6、GLM-4.7），无导入、无排序。发送消息时在 body 中携带 `model: { providerID, modelID }`。
+**当前实现**：固定 3 个预设（GPT-5.2、Opus 4.6、GLM5），无导入、无排序。发送消息时在 body 中携带 `model: { providerID, modelID }`。
 
 #### 4.4.3 Workspace
 
@@ -391,7 +391,7 @@ App 进入前台
 ┌─────────────────────────────────┐
 │         Files                   │
 ├─────────────────────────────────┤
-│ [File Tree] [Session Changes]   │  ← Segmented control
+│ [File Tree]                     │
 ├─────────────────────────────────┤
 │ 🔍 Search files...              │
 ├─────────────────────────────────┤

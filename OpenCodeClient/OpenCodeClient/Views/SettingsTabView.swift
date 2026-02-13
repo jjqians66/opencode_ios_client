@@ -78,10 +78,23 @@ struct SettingsTabView: View {
                         .textContentType(.password)
 
                     HStack {
-                        Button("Test Connection") {
+                        Button {
                             Task { await state.testAIBuilderConnection() }
+                        } label: {
+                            if state.isTestingAIBuilderConnection {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .scaleEffect(0.9)
+                                    Text("Testing...")
+                                }
+                            } else {
+                                Text("Test Connection")
+                            }
                         }
-                        .disabled(state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(
+                            state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                || state.isTestingAIBuilderConnection
+                        )
                         Spacer()
                         if state.aiBuilderConnectionOK {
                             Label("OK", systemImage: "checkmark.circle.fill")

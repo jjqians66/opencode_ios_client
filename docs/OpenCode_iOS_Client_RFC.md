@@ -170,7 +170,7 @@ final class AppState {
 
 - **Markdown 展示**：Preview 为主，可切换 Markdown 源码
 - **Diff 高亮**：优先在 Preview 内高亮 changes；若实现困难，则在 Markdown 内高亮
-- **入口**：Files Tab → Session Changes → 选文件 → diff 视图
+- **入口**：Files Tab → 选文件 → 预览
 
 ### 6. 权限与输入
 
@@ -189,7 +189,7 @@ final class AppState {
 ### 8. iPad / Vision Pro 布局（Phase 3）
 
 - **条件**：`horizontalSizeClass == .regular` 或 `userInterfaceIdiom == .pad` 时启用
-- **布局**：无 Tab Bar；左右分栏（NavigationSplitView）：左栏 Files（文件树 + Session Changes），右栏 Chat（消息流 + 输入框）
+- **布局**：无 Tab Bar；左右分栏（NavigationSplitView）：左栏 Files（文件树），右栏 Chat（消息流 + 输入框）
 - **文件预览**：左栏窄，不宜内联预览。在 Files 中点击文件时，**弹出 sheet 预览**（与 Chat 中点击 tool 路径一致）；sheet 使用 `.presentationDetents([.large])` 占大半屏
 - **Toolbar**：第一行统一：左（新建 Session、重命名、Session 列表）+ 右（模型切换、**Settings 按钮**）；Settings 点击以 sheet 打开
 - **实现**：`@Environment(\.horizontalSizeClass)` 分支，大屏时渲染 `SplitView`，小屏时渲染 `TabView`；`FileTreeView` 在 regular 时用 `fileToOpenInFilesTab` 触发 sheet，compact 时用 `NavigationLink` 在 Tab 内 push

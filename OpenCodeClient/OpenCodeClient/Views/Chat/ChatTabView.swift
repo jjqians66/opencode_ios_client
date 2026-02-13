@@ -168,13 +168,16 @@ struct ChatTabView: View {
                                 MessageRowView(message: msg, state: state, streamingPart: nil)
                             case .assistantMerged(let msgs):
                                 let merged = MessageWithParts(info: msgs.first!.info, parts: msgs.flatMap(\.parts))
-                                let isLast = msgs.last?.info.id == state.messages.last?.info.id
                                 MessageRowView(
                                     message: merged,
                                     state: state,
-                                    streamingPart: isLast ? streamingReasoningPart : nil
+                                    streamingPart: nil
                                 )
                             }
+                        }
+                        if let streamingPart = state.streamingReasoningPart {
+                            StreamingReasoningView(part: streamingPart, state: state)
+                                .padding(.top, 6)
                         }
                             Color.clear
                                 .frame(height: 1)
@@ -208,44 +211,46 @@ struct ChatTabView: View {
                                 .stroke(Color(.systemGray4), lineWidth: 0.5)
                         )
 
-                    Button {
-                        Task { await toggleRecording() }
-                    } label: {
-                        if isTranscribing {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: isRecording ? "mic.circle.fill" : "mic.circle")
-                                .font(.title)
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(isRecording ? .red : .secondary)
-                        }
-                    }
-                    .disabled(isSending || isTranscribing)
-
-                    Button {
-                        sendCurrentInput()
-                    } label: {
-                        if isSending {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.title)
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .keyboardShortcut(.return, modifiers: [])
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending || isRecording || isTranscribing)
-
-                    if state.isBusy {
+                    VStack(spacing: 8) {
                         Button {
-                            Task { await state.abortSession() }
+                            Task { await toggleRecording() }
                         } label: {
-                            Image(systemName: "stop.circle.fill")
-                                .font(.title)
-                                .foregroundStyle(.red)
+                            if isTranscribing {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: isRecording ? "mic.circle.fill" : "mic.circle")
+                                    .font(.title)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(isRecording ? .red : .secondary)
+                            }
+                        }
+                        .disabled(isSending || isTranscribing)
+
+                        Button {
+                            sendCurrentInput()
+                        } label: {
+                            if isSending {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.title)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundColor(.accentColor)
+                            }
+                        }
+                        .keyboardShortcut(.return, modifiers: [])
+                        .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending || isRecording || isTranscribing)
+
+                        if state.isBusy {
+                            Button {
+                                Task { await state.abortSession() }
+                            } label: {
+                                Image(systemName: "stop.circle.fill")
+                                    .font(.title)
+                                    .foregroundStyle(.red)
+                            }
                         }
                     }
                 }
@@ -341,6 +346,20 @@ struct ChatTabView: View {
                 speechError = error.localizedDescription
             }
         } else {
+            let token = state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            if token.isEmpty {
+                speechError = "语音识别未配置：请先到 Settings -> Speech Recognition 设置 AI Builder Token，并点击 Test Connection。"
+                return
+            }
+            if state.isTestingAIBuilderConnection {
+                speechError = "AI Builder 正在测试连接，请稍候。"
+                return
+            }
+            guard state.aiBuilderConnectionOK else {
+                speechError = "AI Builder 连接未通过测试：请先到 Settings -> Speech Recognition 点击 Test Connection，确认 OK 后再录音。"
+                return
+            }
+
             let allowed = await recorder.requestPermission()
             guard allowed else {
                 speechError = "Microphone permission denied"
@@ -353,14 +372,6 @@ struct ChatTabView: View {
                 speechError = error.localizedDescription
             }
         }
-    }
-
-    /// 仅在 streaming 时显示：当 session busy 且最后一条 assistant 消息的最后一个 part 是 reasoning
-    private var streamingReasoningPart: Part? {
-        guard state.isBusy else { return nil }
-        guard let lastMsg = state.messages.last, lastMsg.info.isAssistant else { return nil }
-        guard let lastPart = lastMsg.parts.last, lastPart.isReasoning else { return nil }
-        return lastPart
     }
 
     /// 内容变化时用于触发自动滚动

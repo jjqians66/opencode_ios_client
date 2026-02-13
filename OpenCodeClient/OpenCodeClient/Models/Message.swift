@@ -11,6 +11,7 @@ struct Message: Codable, Identifiable {
     let role: String
     let parentID: String?
     let model: ModelInfo?
+    let error: MessageError?
     let time: TimeInfo
     let finish: String?
 
@@ -24,8 +25,24 @@ struct Message: Codable, Identifiable {
         let completed: Int?
     }
 
+    struct MessageError: Codable {
+        let name: String
+        let data: [String: AnyCodable]
+
+        var message: String? {
+            if let msg = data["message"]?.value as? String { return msg }
+            if let msg = data["error"]?.value as? String { return msg }
+            return nil
+        }
+    }
+
     var isUser: Bool { role == "user" }
     var isAssistant: Bool { role == "assistant" }
+
+    var errorMessageForDisplay: String? {
+        let trimmed = error?.message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed : nil
+    }
 }
 
 struct MessageWithParts: Codable {

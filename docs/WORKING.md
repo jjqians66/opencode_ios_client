@@ -5,7 +5,7 @@
 ## 当前状态
 
 - **最后更新**：2026-02-12
-- **Phase**：Phase 3 完成（Think Streaming + iPad 分栏）
+- **Phase**：Phase 3 完成（Think Streaming + iPad 分栏）+ 增强（GLM5、错误显示、录音校验）
 - **编译**：✅ 通过
 - **测试**：✅ 60 个单元测试通过
 
@@ -21,7 +21,7 @@
 - [x] Phase 1 完善：SSE 事件解析、流式更新、Part.state 兼容、Markdown 渲染、工具调用全行显示
 - [x] Phase 2：Part 渲染（reasoning 折叠、step 分隔线、patch 卡片）、权限手动批准、主题切换
 - [x] UX 简化：一行 toolbar（左：新建/重命名/查看 session；右：3 模型图标），移除 Compact、Import、Model Presets
-- [x] Phase 3：文件树（递归展开、按需加载）、文件内容（代码行号、Markdown Preview 切换）、Files Tab 双模式（File Tree / Session Changes）、文件搜索
+- [x] Phase 3：文件树（递归展开、按需加载）、文件内容（代码行号、Markdown Preview 切换）、Files Tab（仅 File Tree）+ 文件搜索
 - [x] Tool/Patch 点击跳转：write/edit/apply_patch 等含 path 的 tool，点击可「在 File Tree 中打开」文件预览（path 来自 metadata、state.input.path/file_path/filePath、patchText 解析）
 - [x] apply_patch path 解析修复：patchText 以 "*** Begin Patch\n*** Add File: " 开头，改用 range(of:) 查找
 - [x] Tool 卡片增加「在 File Tree 中打开」按钮（label 旁文件夹图标）+ context menu
@@ -50,6 +50,15 @@
 - [x] Bug: Diff/文件预览 — 横向滚动、minWidth 填满、textSelection
 - [x] Todo 2.4 按方案 B 暂不强调
 - [x] 最近 commit/push：9b4b842（tool layout、Diff 预览、Settings HTTP info、1.1 规划、2.4）
+- [x] **GLM-4.7 → GLM5**：模型更新为 `zai-coding-plan` / `glm-5`
+- [x] **Session title 自动更新**：监听 SSE `session.updated` 事件 + 发送后轮询刷新，无需手动重命名
+- [x] **Thinking 打字机效果修复**：收到 `message.part.updated`（reasoning）时固定在消息列表底部显示 `StreamingReasoningView`，不再依赖 messages 已有 reasoning part
+- [x] **录音前校验 AI Builder Token**：token 为空 / 正在测试 / 测试未通过时弹窗提示先去 Settings 配置
+- [x] **Test Connection 转圈状态**：Settings AI Builder 连接测试时显示 "Testing..." + ProgressView
+- [x] **发送/录音按钮上下并排**：iPhone/iPad 均改为 VStack 布局，send 在上、mic 在下、abort（如有）在最下
+- [x] **Session 列表按更新时间排序**：使用 `sortedSessions` 按 `time.updated` 降序排列
+- [x] **切换 Session 空白 bug 修复**：切换时先清空 messages/parts/streaming 状态再加载新 session 数据
+- [x] **服务端错误信息展示**：assistant message 带 `error.data.message` 时在消息中以红色卡片显示
 
 ## 待办
 
@@ -92,7 +101,7 @@
 用户指定模型对应：
 - OpenAI GPT-5.2：✅ `openai` / `gpt-5.2`
 - POE Opus Claude 4.6：✅ `poe` / `anthropic/claude-opus-4-6`
-- z.ai coding plan GLM-4.7：✅ `zai-coding-plan` / `glm-4.7`
+- z.ai coding plan GLM5：✅ `zai-coding-plan` / `glm-5`
 
 ## Diff 问题
 

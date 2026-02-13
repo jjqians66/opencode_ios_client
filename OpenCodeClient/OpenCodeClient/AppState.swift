@@ -141,6 +141,9 @@ final class AppState {
         set {
             _aiBuilderBaseURL = newValue
             UserDefaults.standard.set(newValue, forKey: Self.aiBuilderBaseURLKey)
+            aiBuilderConnectionOK = false
+            aiBuilderConnectionError = nil
+            aiBuilderLastTestedAt = nil
         }
     }
 
@@ -154,10 +157,15 @@ final class AppState {
             } else {
                 KeychainHelper.save(newValue, forKey: Self.aiBuilderTokenKeychainKey)
             }
+            aiBuilderConnectionOK = false
+            aiBuilderConnectionError = nil
+            aiBuilderLastTestedAt = nil
         }
     }
     var aiBuilderConnectionError: String? = nil
     var aiBuilderConnectionOK: Bool = false
+    var aiBuilderLastTestedAt: Date? = nil
+    var isTestingAIBuilderConnection: Bool = false
     var isConnected: Bool = false
     var serverVersion: String?
     var connectionError: String?
@@ -169,6 +177,7 @@ final class AppState {
     private let todoStore = TodoStore()
 
     var sessions: [Session] { get { sessionStore.sessions } set { sessionStore.sessions = newValue } }
+    var sortedSessions: [Session] { sessions.sorted { $0.time.updated > $1.time.updated } }
     var currentSessionID: String? { get { sessionStore.currentSessionID } set { sessionStore.currentSessionID = newValue } }
     var sessionStatuses: [String: SessionStatus] { get { sessionStore.sessionStatuses } set { sessionStore.sessionStatuses = newValue } }
 
@@ -180,7 +189,7 @@ final class AppState {
     var modelPresets: [ModelPreset] = [
         ModelPreset(displayName: "GPT-5.2", providerID: "openai", modelID: "gpt-5.2"),
         ModelPreset(displayName: "Opus 4.6", providerID: "poe", modelID: "anthropic/claude-opus-4-6"),
-        ModelPreset(displayName: "GLM-4.7", providerID: "zai-coding-plan", modelID: "glm-4.7"),
+        ModelPreset(displayName: "GLM5", providerID: "zai-coding-plan", modelID: "glm-5"),
     ]
     var selectedModelIndex: Int = 0
 
@@ -206,6 +215,9 @@ final class AppState {
     private let sseClient = SSEClient()
     private var sseTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
+
+    /// Latest streaming reasoning part (for typewriter thinking display)
+    var streamingReasoningPart: Part? = nil
 
     var selectedModel: ModelPreset? {
         guard modelPresets.indices.contains(selectedModelIndex) else { return nil }
@@ -280,6 +292,11 @@ final class AppState {
     }
 
     func selectSession(_ session: Session) {
+        guard currentSessionID != session.id else { return }
+        streamingReasoningPart = nil
+        streamingPartTexts = [:]
+        messages = []
+        partsByMessage = [:]
         currentSessionID = session.id
         Task {
             await loadMessages()
@@ -405,18 +422,25 @@ final class AppState {
     }
 
     func testAIBuilderConnection() async {
+        guard !isTestingAIBuilderConnection else { return }
+        isTestingAIBuilderConnection = true
+        defer { isTestingAIBuilderConnection = false }
+
         aiBuilderConnectionError = nil
         aiBuilderConnectionOK = false
         let token = aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
             aiBuilderConnectionError = "Token is empty"
+            aiBuilderLastTestedAt = Date()
             return
         }
         let base = aiBuilderBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             try await AIBuildersAudioClient.testConnection(baseURL: base, token: token)
             aiBuilderConnectionOK = true
+            aiBuilderLastTestedAt = Date()
         } catch {
+            aiBuilderLastTestedAt = Date()
             switch error {
             case AIBuildersAudioError.missingToken:
                 aiBuilderConnectionError = "Token is empty"
@@ -462,10 +486,15 @@ final class AppState {
     private func startPollingAfterSend() {
         pollingTask?.cancel()
         pollingTask = Task {
-            for _ in 0..<30 {
+            for i in 0..<30 {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { return }
                 await loadMessages()
+
+                // Refresh sessions a few times after send to pick up server-generated titles.
+                if i == 2 || i == 6 || i == 12 {
+                    await loadSessions()
+                }
             }
         }
     }
@@ -566,11 +595,28 @@ final class AppState {
                 if let status = try? JSONSerialization.data(withJSONObject: statusObj),
                    let decoded = try? JSONDecoder().decode(SessionStatus.self, from: status) {
                     sessionStatuses[sessionID] = decoded
+                    if sessionID == currentSessionID, decoded.type != "busy" {
+                        streamingReasoningPart = nil
+                        streamingPartTexts = [:]
+                    }
+                }
+            }
+        case "session.updated":
+            let infoVal = props["info"]?.value ?? props["session"]?.value
+            if let infoObj = infoVal,
+               JSONSerialization.isValidJSONObject(infoObj),
+               let data = try? JSONSerialization.data(withJSONObject: infoObj),
+               let session = try? JSONDecoder().decode(Session.self, from: data) {
+                if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
+                    sessions[idx] = session
+                } else {
+                    sessions.insert(session, at: 0)
                 }
             }
         case "message.updated":
             let eventSessionID = props["sessionID"]?.value as? String
             if Self.shouldProcessMessageEvent(eventSessionID: eventSessionID, currentSessionID: currentSessionID) {
+                streamingReasoningPart = nil
                 streamingPartTexts = [:]
                 await loadMessages()
                 await loadSessionDiff()
@@ -578,14 +624,34 @@ final class AppState {
         case "message.part.updated":
             if let sessionID = props["sessionID"]?.value as? String,
                sessionID == currentSessionID {
+                let partObj = props["part"]?.value as? [String: Any]
+                let msgID = partObj?["messageID"] as? String
+                let partID = partObj?["id"] as? String
+                let partType = partObj?["type"] as? String
+
+                if let msgID, let partID, partType == "reasoning" {
+                    streamingReasoningPart = Part(
+                        id: partID,
+                        messageID: msgID,
+                        sessionID: sessionID,
+                        type: "reasoning",
+                        text: nil,
+                        tool: nil,
+                        callID: nil,
+                        state: nil,
+                        metadata: nil,
+                        files: nil
+                    )
+                }
+
                 if let delta = props["delta"]?.value as? String,
-                   let partObj = props["part"]?.value as? [String: Any],
-                   let msgID = partObj["messageID"] as? String,
-                   let partID = partObj["id"] as? String,
+                   let msgID,
+                   let partID,
                    !delta.isEmpty {
                     let key = "\(msgID):\(partID)"
                     streamingPartTexts[key] = (streamingPartTexts[key] ?? "") + delta
                 } else {
+                    streamingReasoningPart = nil
                     streamingPartTexts = [:]
                     await loadMessages()
                     await loadSessionDiff()

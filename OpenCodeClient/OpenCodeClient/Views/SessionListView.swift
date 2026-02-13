@@ -19,7 +19,7 @@ struct SessionListView: View {
                     )
                 } else {
                     List {
-                        ForEach(state.sessions) { session in
+                        ForEach(state.sortedSessions) { session in
                             SessionRowView(
                                 session: session,
                                 status: state.sessionStatuses[session.id],
