@@ -719,3 +719,180 @@ struct APIConstantsTests {
         #expect(APIConstants.Timeout.request > APIConstants.Timeout.connection)
     }
 }
+
+// MARK: - SSH Tunnel Tests
+
+struct SSHTunnelTests {
+
+    @Test func sshTunnelConfigDefault() {
+        let config = SSHTunnelConfig()
+        #expect(config.isEnabled == false)
+        #expect(config.host == "")
+        #expect(config.port == 22)
+        #expect(config.username == "")
+        #expect(config.remotePort == 18080)
+    }
+
+    @Test func sshTunnelConfigValidation() {
+        var config = SSHTunnelConfig()
+        #expect(config.isValid == false)
+        
+        config.host = "example.com"
+        config.username = "user"
+        #expect(config.isValid == true)
+        
+        config.port = 0
+        #expect(config.isValid == false)
+        
+        config.port = 22
+        config.remotePort = 0
+        #expect(config.isValid == false)
+    }
+
+    @Test func sshTunnelConfigCoding() throws {
+        var config = SSHTunnelConfig()
+        config.isEnabled = true
+        config.host = "vps.example.com"
+        config.port = 2222
+        config.username = "testuser"
+        config.remotePort = 8080
+        
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(SSHTunnelConfig.self, from: data)
+        
+        #expect(decoded.isEnabled == true)
+        #expect(decoded.host == "vps.example.com")
+        #expect(decoded.port == 2222)
+        #expect(decoded.username == "testuser")
+        #expect(decoded.remotePort == 8080)
+    }
+
+    @Test func sshTunnelConfigEquatable() {
+        let c1 = SSHTunnelConfig(isEnabled: true, host: "a.com", port: 22, username: "u", remotePort: 18080)
+        let c2 = SSHTunnelConfig(isEnabled: true, host: "a.com", port: 22, username: "u", remotePort: 18080)
+        let c3 = SSHTunnelConfig(isEnabled: false, host: "a.com", port: 22, username: "u", remotePort: 18080)
+        
+        #expect(c1 == c2)
+        #expect(c1 != c3)
+    }
+
+    @Test func sshConnectionStatusEquatable() {
+        #expect(SSHConnectionStatus.disconnected == SSHConnectionStatus.disconnected)
+        #expect(SSHConnectionStatus.connecting == SSHConnectionStatus.connecting)
+        #expect(SSHConnectionStatus.connected == SSHConnectionStatus.connected)
+        #expect(SSHConnectionStatus.error("msg") == SSHConnectionStatus.error("msg"))
+        #expect(SSHConnectionStatus.error("a") != SSHConnectionStatus.error("b"))
+        #expect(SSHConnectionStatus.disconnected != SSHConnectionStatus.connected)
+    }
+
+    @Test func sshErrorDescriptions() {
+        #expect(SSHError.notImplemented.errorDescription?.contains("Citadel") == true)
+        #expect(SSHError.connectionFailed("timeout").errorDescription?.contains("timeout") == true)
+        #expect(SSHError.authenticationFailed.errorDescription?.contains("Authentication") == true)
+        #expect(SSHError.keyNotFound.errorDescription?.contains("key not found") == true)
+    }
+
+    @Test @MainActor func sshTunnelManagerInitialStatus() {
+        let manager = SSHTunnelManager()
+        #expect(manager.status == .disconnected)
+        #expect(manager.config.isEnabled == false)
+    }
+
+    @Test @MainActor func sshTunnelManagerConfigPersistence() {
+        let manager = SSHTunnelManager()
+        manager.config.host = "test.example.com"
+        manager.config.port = 2222
+        manager.config.username = "testuser"
+        manager.config.remotePort = 9999
+        
+        // Create a new manager to test persistence
+        let manager2 = SSHTunnelManager()
+        #expect(manager2.config.host == "test.example.com")
+        #expect(manager2.config.port == 2222)
+        #expect(manager2.config.username == "testuser")
+        #expect(manager2.config.remotePort == 9999)
+        
+        // Clean up
+        manager2.config = .default
+    }
+}
+
+// MARK: - SSH Key Manager Tests
+
+struct SSHKeyManagerTests {
+
+    @Test func sshKeyGenerationProducesValidKeys() throws {
+        let (privateKey, publicKey) = try SSHKeyManager.generateKeyPair()
+        
+        #expect(!privateKey.isEmpty)
+        #expect(!publicKey.isEmpty)
+        #expect(publicKey.hasPrefix("ssh-ed25519 "))
+        #expect(publicKey.contains("opencode-ios"))
+    }
+
+    @Test func sshKeySaveAndLoad() throws {
+        let (privateKey, _) = try SSHKeyManager.generateKeyPair()
+        
+        SSHKeyManager.savePrivateKey(privateKey)
+        let loaded = SSHKeyManager.loadPrivateKey()
+        
+        #expect(loaded == privateKey)
+        
+        // Clean up
+        SSHKeyManager.deleteKeyPair()
+    }
+
+    @Test func sshKeyPublicKeyStorage() {
+        let testKey = "ssh-ed25519 AAAA... test-key"
+        SSHKeyManager.savePublicKey(testKey)
+        
+        #expect(SSHKeyManager.getPublicKey() == testKey)
+        
+        // Clean up
+        SSHKeyManager.deleteKeyPair()
+    }
+
+    @Test func sshKeyDeleteKeyPair() throws {
+        let (privateKey, publicKey) = try SSHKeyManager.generateKeyPair()
+        SSHKeyManager.savePrivateKey(privateKey)
+        SSHKeyManager.savePublicKey(publicKey)
+        
+        #expect(SSHKeyManager.hasKeyPair() == true)
+        
+        SSHKeyManager.deleteKeyPair()
+        
+        #expect(SSHKeyManager.hasKeyPair() == false)
+        #expect(SSHKeyManager.loadPrivateKey() == nil)
+        #expect(SSHKeyManager.getPublicKey() == nil)
+    }
+
+    @Test func sshKeyEnsureKeyPairCreatesIfNeeded() throws {
+        // Clean up first
+        SSHKeyManager.deleteKeyPair()
+        #expect(SSHKeyManager.hasKeyPair() == false)
+        
+        let publicKey = try SSHKeyManager.ensureKeyPair()
+        
+        #expect(!publicKey.isEmpty)
+        #expect(SSHKeyManager.hasKeyPair() == true)
+        
+        // Second call should return existing key
+        let publicKey2 = try SSHKeyManager.ensureKeyPair()
+        #expect(publicKey == publicKey2)
+        
+        // Clean up
+        SSHKeyManager.deleteKeyPair()
+    }
+
+    @Test func sshKeyRotateGeneratesNewKey() throws {
+        let publicKey1 = try SSHKeyManager.ensureKeyPair()
+        let publicKey2 = try SSHKeyManager.rotateKey()
+        
+        #expect(publicKey1 != publicKey2)
+        #expect(SSHKeyManager.hasKeyPair() == true)
+        #expect(SSHKeyManager.getPublicKey() == publicKey2)
+        
+        // Clean up
+        SSHKeyManager.deleteKeyPair()
+    }
+}

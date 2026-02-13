@@ -354,6 +354,7 @@ final class AppState {
 
     private let apiClient = APIClient()
     private let sseClient = SSEClient()
+    let sshTunnelManager = SSHTunnelManager()
     private var sseTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
 

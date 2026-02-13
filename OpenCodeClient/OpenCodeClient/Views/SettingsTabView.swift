@@ -7,6 +7,10 @@ import SwiftUI
 
 struct SettingsTabView: View {
     @Bindable var state: AppState
+    
+    @State private var showPublicKeySheet = false
+    @State private var showRotateKeyAlert = false
+    @State private var copiedPublicKey = false
 
     var body: some View {
         NavigationStack {
@@ -59,6 +63,78 @@ struct SettingsTabView: View {
                         Task { await state.refresh() }
                     }
                     .buttonStyle(.plain)
+                }
+
+                Section {
+                    Toggle("Enable SSH Tunnel", isOn: $state.sshTunnelManager.config.isEnabled)
+                        .onChange(of: state.sshTunnelManager.config.isEnabled) { _, newValue in
+                            if newValue {
+                                Task { await state.sshTunnelManager.connect() }
+                            } else {
+                                state.sshTunnelManager.disconnect()
+                            }
+                        }
+
+                    if state.sshTunnelManager.config.isEnabled {
+                        TextField("VPS Host", text: $state.sshTunnelManager.config.host)
+                            .textContentType(.URL)
+                            .autocapitalization(.none)
+                        
+                        HStack {
+                            Text("SSH Port")
+                            Spacer()
+                            TextField("", value: $state.sshTunnelManager.config.port, formatter: NumberFormatter())
+                                .keyboardType(.numberPad)
+                                .frame(width: 80)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        
+                        TextField("Username", text: $state.sshTunnelManager.config.username)
+                            .textContentType(.username)
+                            .autocapitalization(.none)
+                        
+                        HStack {
+                            Text("Remote Port")
+                            Spacer()
+                            TextField("", value: $state.sshTunnelManager.config.remotePort, formatter: NumberFormatter())
+                                .keyboardType(.numberPad)
+                                .frame(width: 80)
+                                .multilineTextAlignment(.trailing)
+                        }
+
+                        HStack {
+                            Text("Status")
+                            Spacer()
+                            switch state.sshTunnelManager.status {
+                            case .disconnected:
+                                Label("Disconnected", systemImage: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            case .connecting:
+                                HStack(spacing: 4) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Connecting...")
+                                }
+                            case .connected:
+                                Label("Connected", systemImage: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            case .error(let msg):
+                                Text(msg)
+                                    .foregroundStyle(.red)
+                                    .font(.caption)
+                            }
+                        }
+
+                        Button("View / Copy Public Key") {
+                            showPublicKeySheet = true
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text("SSH Tunnel")
+                } footer: {
+                    Text("Connect to your OpenCode server via SSH tunnel through a VPS. First, copy your public key and add it to the VPS's ~/.ssh/authorized_keys.")
+                        .font(.caption)
                 }
 
                 Section("Appearance") {
@@ -119,6 +195,28 @@ struct SettingsTabView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showPublicKeySheet) {
+                PublicKeySheet(
+                    publicKey: state.sshTunnelManager.getPublicKey() ?? "",
+                    onRotate: {
+                        showRotateKeyAlert = true
+                    }
+                )
+            }
+            .alert("Rotate SSH Key?", isPresented: $showRotateKeyAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Rotate", role: .destructive) {
+                    do {
+                        let newKey = try state.sshTunnelManager.rotateKey()
+                        UIPasteboard.general.string = newKey
+                        copiedPublicKey = true
+                    } catch {
+                        // Error handled by manager
+                    }
+                }
+            } message: {
+                Text("This will generate a new key pair. You'll need to update the public key on your VPS.")
+            }
         }
     }
 
@@ -127,6 +225,58 @@ struct SettingsTabView: View {
             return "LAN: HTTP allowed. Recommended only on trusted networks. Warning: HTTP is insecure."
         } else {
             return "WAN: HTTPS required (HTTP will be blocked). Warning: HTTP is insecure."
+        }
+    }
+}
+
+struct PublicKeySheet: View {
+    let publicKey: String
+    let onRotate: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(publicKey)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                } header: {
+                    Text("Your Public Key")
+                } footer: {
+                    Text("Add this key to your VPS: ~/.ssh/authorized_keys")
+                        .font(.caption)
+                }
+
+                Button {
+                    UIPasteboard.general.string = publicKey
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        copied = false
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        Text(copied ? "Copied!" : "Copy to Clipboard")
+                    }
+                }
+                .disabled(publicKey.isEmpty)
+
+                Button("Rotate Key", role: .destructive) {
+                    onRotate()
+                    dismiss()
+                }
+                .disabled(publicKey.isEmpty)
+            }
+            .navigationTitle("SSH Public Key")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }
