@@ -68,6 +68,11 @@ struct SessionRowView: View {
     let status: SessionStatus?
     let isSelected: Bool
     let onSelect: () -> Void
+    
+    private var isBusy: Bool {
+        guard let status else { return false }
+        return status.type == "busy" || status.type == "retry"
+    }
 
     var body: some View {
         Button(action: onSelect) {
@@ -75,7 +80,7 @@ struct SessionRowView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.title.isEmpty ? "Untitled" : session.title)
                         .font(.headline)
-                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .foregroundStyle(isBusy ? .blue : .primary)
 
                     HStack(spacing: 8) {
                         Text(formattedDate(session.time.updated))
@@ -104,7 +109,7 @@ struct SessionRowView: View {
             .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
-        .listRowBackground(isSelected ? Color.secondary.opacity(0.12) : Color.clear)
+        .listRowBackground(isSelected ? Color.blue.opacity(0.08) : Color.clear)
     }
 
     private func formattedDate(_ timestamp: Int) -> String {
@@ -124,7 +129,9 @@ struct SessionRowView: View {
     }
 
     private func statusColor(_ status: SessionStatus) -> Color {
-        // Keep session list typography neutral; selection uses background highlight.
-        return .secondary
+        switch status.type {
+        case "busy", "retry": return .blue
+        default: return .secondary
+        }
     }
 }
