@@ -302,6 +302,10 @@ final class AppState {
     private var sseTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
 
+    /// Guard against race conditions when rapidly switching sessions.
+    /// Each selectSession call generates a new ID; async tasks check if they're still current.
+    private var sessionLoadingID = UUID()
+
     /// Latest streaming reasoning part (for typewriter thinking display)
     var streamingReasoningPart: Part? = nil
     private var streamingDraftMessageIDs: Set<String> = []
@@ -408,21 +412,38 @@ final class AppState {
 
     func selectSession(_ session: Session) {
         guard currentSessionID != session.id else { return }
+        
+        // Generate new loading ID to invalidate any in-flight tasks from previous session
+        let loadingID = UUID()
+        sessionLoadingID = loadingID
+        
         streamingReasoningPart = nil
         streamingPartTexts = [:]
         messages = []
         partsByMessage = [:]
         currentSessionID = session.id
         applySavedModelForCurrentSession()
-        Task {
-            await refreshSessions()
-            await loadMessages()
-            inferAndStoreModelForCurrentSessionIfMissing()
-            await loadSessionDiff()
-            await loadSessionTodos()
+        
+        Task { [weak self] in
+            guard let self else { return }
+            // Check if this task is still current before proceeding
+            guard self.sessionLoadingID == loadingID else { return }
+            
+            await self.refreshSessions()
+            guard self.sessionLoadingID == loadingID else { return }
+            
+            await self.loadMessages()
+            guard self.sessionLoadingID == loadingID else { return }
+            
+            self.inferAndStoreModelForCurrentSessionIfMissing()
+            await self.loadSessionDiff()
+            guard self.sessionLoadingID == loadingID else { return }
+            
+            await self.loadSessionTodos()
+            guard self.sessionLoadingID == loadingID else { return }
 
-            if isBusySession(currentSessionStatus) {
-                startPollingCurrentSession(forBusySession: true)
+            if self.isBusySession(self.currentSessionStatus) {
+                self.startPollingCurrentSession(forBusySession: true)
             }
         }
     }
@@ -444,8 +465,14 @@ final class AppState {
 
     func createSession() async {
         guard isConnected else { return }
+        
+        let loadingID = UUID()
+        sessionLoadingID = loadingID
+        
         do {
             let session = try await apiClient.createSession()
+            guard sessionLoadingID == loadingID else { return }
+            
             sessions.insert(session, at: 0)
             currentSessionID = session.id
             if let m = selectedModel {
@@ -455,6 +482,7 @@ final class AppState {
             messages = []
             partsByMessage = [:]
         } catch {
+            guard sessionLoadingID == loadingID else { return }
             connectionError = error.localizedDescription
         }
     }

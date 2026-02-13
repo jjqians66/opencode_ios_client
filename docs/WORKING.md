@@ -96,6 +96,17 @@
 - [x] **Code Review 1.4**：PathNormalizer 统一路径规范化（Utils/PathNormalizer.swift）
 - [ ] **Phase 4：iPad / Vision Pro 布局优化**：可考虑（可选）Preview 栏支持“固定/关闭当前文件”等更细粒度控制
 
+### Code Review 改进（来自 code_review.md）
+
+- [x] **4.2 Race Condition**：Session 切换添加 `sessionLoadingID` 防止快速切换时竞态
+- [ ] **3.2 Error Presentation**：统一错误处理模式
+- [ ] **3.3 Magic Numbers**：提取常量（列宽比例、动画时长等）
+- [ ] **3.4 Test Coverage**：添加 AppState 层面测试
+- [ ] **3.5 View Decomposition**：拆分 ChatTabView
+- [ ] **3.1 AppState Size**：继续提取 Coordinator
+- [ ] **4.1 Memory Leaks**：SSE 连接 deinit 处理
+- [ ] **4.4 Default Server**：修改默认服务器配置
+
 ## 遇到的问题
 
 1. **Local network prohibited (iOS)**：连接 `192.168.180.128:4096` 时报错 `Local network prohibited`。需在 Info.plist 添加：
