@@ -31,9 +31,6 @@ struct MessageRowView: View {
     }
 
     private var assistantBlocks: [AssistantBlock] {
-        // Only layout non-reasoning parts here; reasoning streaming is handled separately.
-        let parts = message.parts.filter { !$0.isReasoning }
-
         var blocks: [AssistantBlock] = []
         var buffer: [Part] = []
 
@@ -43,23 +40,22 @@ struct MessageRowView: View {
             buffer.removeAll(keepingCapacity: true)
         }
 
-        for part in parts {
+        for part in message.parts {
+            // Reasoning: 不 flush，不打断 tool/patch 网格；streaming 时由 streamingPart 单独渲染
+            if part.isReasoning {
+                continue
+            }
             if part.isTool || part.isPatch {
                 buffer.append(part)
                 continue
             }
-
-            // step-start/step-finish are currently rendered as separators elsewhere.
-            // For iPad card grid density, do not break the current card flow.
             if part.isStepStart || part.isStepFinish {
                 continue
             }
-
             if part.isText {
                 flushBuffer()
                 blocks.append(.text(part))
             } else {
-                // Unknown/unsupported types: break card flow to avoid odd grid mixing.
                 flushBuffer()
             }
         }

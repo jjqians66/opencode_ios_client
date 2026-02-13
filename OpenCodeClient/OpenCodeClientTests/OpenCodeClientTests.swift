@@ -14,7 +14,7 @@ import Testing
 struct OpenCodeClientTests {
 
     @Test func defaultServerAddress() {
-        #expect(APIClient.defaultServer == "127.0.0.1:4096")
+        #expect(APIClient.defaultServer == "192.168.0.80:4096")
     }
 
     @Test func sessionDecoding() throws {

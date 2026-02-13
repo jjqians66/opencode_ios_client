@@ -48,7 +48,7 @@ iOS 端是纯粹的 API 消费者。不需要任何本地 AI 推理、文件系�
 | 网络层 | URLSession + 原生 SSE | 无需引入第三方 HTTP 库，SSE 协议本身很简单 |
 | 状态管理 | Swift Observation (@Observable) | iOS 17+ 原生方案，配合 SwiftUI 最简洁 |
 | 代码高亮 | 暂不实现 | 当前仅等宽字体、行号 |
-| Markdown 渲染 | 原生 TextKit / MarkdownUI | 文档预览、支持代码块 |
+| Markdown 渲染 | MarkdownUI | 文档预览、支持代码块 |
 | Diff 渲染 | 自建组件 (基于服务端返回的 before/after) | 服务端已经做了 diff 计算，客户端只需渲染；文档 diff 需高亮 changes |
 | 最低版本 | iOS 17.0 | 使用 Observation 框架，放弃 iOS 16 |
 | 持久化 | UserDefaults + Keychain | 只需存连接信息和模型预设，无需本地数据库 |
@@ -141,7 +141,7 @@ iPhone 采用底部 Tab Bar，三个 Tab：
 
 **大屏布局（iPad / Vision Pro）补充**：为了利用横向空间，`tool` / `patch` / permission 卡片可采用 **三列网格**横向填充（不足自动换行）；但 `text`（最终回答）仍按整行展示，避免阅读断裂。
 
-**流式更新（Think Streaming）**：行为与官方 Web 客户端对齐。SSE 推送 `message.part.updated` 时，若有 `delta` 字段，客户端增量追加到对应 text/reasoning Part，实现打字机效果；若无 delta 则全量 reload。使用 `messageID` + `partID` 定位 Part。。**注**：Tool output 的实时流式（如 terminal 输出逐行）当前 API 不支持，output 仅在 completed 时一次性返回。
+**流式更新（Think Streaming）**：行为与官方 Web 客户端对齐。SSE 推送 `message.part.updated` 时，若有 `delta` 字段，客户端增量追加到对应 text/reasoning Part，实现打字机效果；若无 delta 则全量 reload。使用 `messageID` + `partID` 定位 Part。**注**：Tool output 的实时流式（如 terminal 输出逐行）当前 API 不支持，output 仅在 completed 时一次性返回。
 
 **Session 状态指示器**：消息流顶部显示当前 session 状态（idle / busy / error）。状态来源于 `session.status` SSE 事件。busy 时显示进度动画。
 
@@ -156,24 +156,24 @@ OpenCode 绝大多数情况下不会请求 permission，若出现 `permission.as
 
 #### 4.2.4 输入框
 
-底部固定输入框，支持多行文本。右侧发送按钮。输入框上方可选显示当前选中模型的小标签。
+底部固定输入框，支持多行文本。右侧为发送按钮和麦克风按钮。Session 操作（新建、重命名、列表、Compact）在 Chat 顶部 toolbar，不在输入框左侧。
 
-**语音输入（Speech Recognition）**：输入框右侧提供麦克风按钮。点击开始录音，再次点击停止并调用语音转写 API，将转写文本追加到输入框。Token 通过 Settings 配置并存 Keychain，不提交到 git。
+**语音输入（Speech Recognition）**：输入框右侧麦克风按钮。点击开始录音，再次点击停止并调用 AI Builder `/v1/audio/transcriptions` 转写，将文本追加到输入框。Token 和 Base URL 在 Settings → Speech Recognition 配置，存 Keychain，不提交到 git。
 
 **消息队列**：当 session 处于 busy 状态时，用户发送的消息进入队列。OpenCode Server 的 `POST /session/:id/prompt_async` 在服务端已支持队列——busy 时会将消息入队，当前运行结束后自动处理。iOS 端调用 `prompt_async` 即可，无需本地维护队列。若未来 API 变更，可退化为本地队列维护。
 
 **Enter 行为调研结论**：OpenCode Web 客户端在空输入时按 Enter 会调用 abort 终止当前运行；有内容时按 Enter 发送消息（通过 prompt，消息由服务端队列处理）。无「智能 steer」机制，仅终止或排队。iOS 端可提供手动 abort 按钮，无需实现额外 steer。
 
-额外操作（通过输入框左侧的 "+" 按钮或长按发送按钮触发）：
-- 新建 Session
+额外操作（通过 Chat 顶部 toolbar 按钮）：
+- 新建 Session、重命名、Session 列表
+- Compact Session（调用 `POST /session/:id/summarize`，压缩历史以降低 token 超限风险）
 - 中止当前运行（调用 `POST /session/:id/abort`）
-- Compact Session（调用 `POST /session/:id/summarize`）
 
 #### 4.2.5 Session 管理
 
 从 Chat Tab 顶部左侧的按钮进入 Session 列表（slide-over 或 navigation push）。**列出 workspace 下所有已有 Session**，是重要的功能验证手段：可验证连接是否正确、API 解析是否正常、消息/状态能否正确展示。
 
-列表显示所有 Session，按时间倒序。每个条目显示：标题、创建时间、消息数、状态（idle/busy）。支持新建 Session、删除 Session、切换 Session。
+列表显示所有 Session，按时间倒序。每个条目显示：标题、创建时间、消息数、状态（idle/busy）。支持新建 Session、切换 Session。**删除 Session 暂未实现**。
 
 ### 4.3 Files Tab（文件浏览与 Diff）
 
@@ -217,7 +217,7 @@ Diff 渲染采用 unified diff 格式（类似 GitHub），绿色背景表示新
 
 #### 4.4.1 Server Connection
 
-- Server Address：文本输入框，格式 `ip:port`，默认 `192.168.180.128:4096`
+- Server Address：文本输入框，格式 `ip:port`，默认 `192.168.0.80:4096`
 - Username：可选，默认 `opencode`
 - Password：可选，存入 Keychain
 - 连接状态指示：显示 Connected / Disconnected / Connecting
@@ -225,22 +225,14 @@ Diff 渲染采用 unified diff 格式（类似 GitHub），绿色背景表示新
 
 #### 4.4.2 Model Presets
 
-一个有序列表，每条记录包含：
-- 显示名称（用户自定义，如 "Claude Opus"）
-- Provider ID（如 `anthropic`）
-- Model ID（如 `claude-opus-4-20250514`）
-
-提供"从服务端导入"功能：调用 `GET /config/providers` 获取所有可用的 Provider 和模型列表，用户勾选想要的模型加入预设列表。
-
-列表支持拖拽排序，排在前面的模型在 Chat Tab 的切换条中更靠左。
+**当前实现**：固定 3 个预设（GPT-5.2、Opus 4.6、GLM-4.7），无导入、无排序。发送消息时在 body 中携带 `model: { providerID, modelID }`。
 
 #### 4.4.3 Workspace
 
-显示当前连接的 OpenCode Server 的项目路径（来自 `GET /project/current`）。如果 Server 管理了多个项目，可以切换（来自 `GET /project`）。
+**暂未实现**。当前使用当前 session 的 `directory` 作为 workspace，未调用 `GET /project` / `GET /project/current`，无项目切换。未来将支持多 workspace。
 
 #### 4.4.4 外观
 
-- 代码字号调节（小/中/大）
 - **主题跟随系统**（Light/Dark/Auto）：根据系统 theme 切换明暗两种格式
 #### 4.4.5 About
 
@@ -289,7 +281,7 @@ Diff 渲染采用 unified diff 格式（类似 GitHub），绿色背景表示新
 | `session.created` | 追加到 sessions 列表 |
 | `session.updated` | 更新对应 session 的属性 |
 | `session.status` | 更新 sessionStatuses 字典 |
-| `session.diff` | 更新 sessionDiffs 数组 |
+| `session.diff` | 更新 sessionDiffs（若 SSE 推送；否则由 `GET /session/:id/diff` 拉取） |
 | `message.updated` | 更新或插入 message |
 | `message.part.updated` | 更新对应 part；如果有 delta，追加到 text part 的文本末尾 |
 | `message.part.removed` | 从 parts 中移除 |
@@ -344,7 +336,7 @@ App 进入前台
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
-| POST | `/session/:id/summarize` | Compact session |
+| POST | `/session/:id/summarize` | Compact session（已实现） |
 | POST | `/session/:id/fork` | Fork session |
 | GET | `/session/:id/todo` | 查看 AI 的 todo 列表 |
 | GET | `/find?pattern=...` | 全文搜索 |
@@ -389,7 +381,7 @@ App 进入前台
 │  └───────────────────────────┘  │
 │                                 │
 ├─────────────────────────────────┤
-│ ＋ │ Type a message...    │ ➤  │  ← 输入框
+│ │ Type a message...    │ ➤ 🎤 │  ← 输入框（发送 + 麦克风）
 └─────────────────────────────────┘
 ```
 
@@ -444,32 +436,24 @@ App 进入前台
 │                                 │
 │ SERVER CONNECTION               │
 │ ┌─────────────────────────────┐ │
-│ │ Address   192.168.180.128:4096 │ │
+│ │ Address   192.168.0.80:4096   │ │
 │ │ Username  opencode          │ │
 │ │ Password  ••••••••          │ │
 │ │ Status    🟢 Connected      │ │
 │ │           [Test Connection] │ │
 │ └─────────────────────────────┘ │
 │                                 │
-│ MODEL PRESETS                   │
-│ ┌─────────────────────────────┐ │
-│ │ ≡ Claude Opus 4             │ │
-│ │ ≡ Gemini 2.5 Pro            │ │
-│ │ ≡ GPT-4.1                   │ │
-│ │       [+ Import from Server]│ │
-│ └─────────────────────────────┘ │
-│                                 │
-│ WORKSPACE                       │
-│ ┌─────────────────────────────┐ │
-│ │ ~/projects/my-app           │ │
-│ └─────────────────────────────┘ │
-│                                 │
 │ APPEARANCE                      │
 │ ┌─────────────────────────────┐ │
-│ │ Code Font Size    [Medium ▾]│ │
 │ │ Theme             [Auto   ▾]│ │
 │ └─────────────────────────────┘ │
 │                                 │
+│ SPEECH RECOGNITION              │
+│ ┌─────────────────────────────┐ │
+│ │ AI Builder Base URL  (space.ai-builders.com/backend) │ │
+│ │ AI Builder Token     •••••• │ │
+│ │           [Test Connection] │ OK │
+│ └─────────────────────────────┘ │
 │                                 │
 │ ABOUT                           │
 │ ┌─────────────────────────────┐ │
@@ -490,7 +474,7 @@ App 进入前台
 |------|------|
 | Server 连接 | 手动输入 IP:Port，Basic Auth |
 | SSE 事件流 | 连接、断开、重连、前后台切换 |
-| Session 基础 | 列表、创建、切换、删除 |
+| Session 基础 | 列表、创建、切换（删除暂未实现） |
 | 消息发送 | 文本输入、发送（使用 `prompt_async`）、查看响应；busy 时消息自动入队 |
 | 流式渲染 | text part 的实时打字机效果 |
 | 模型切换 | 预设模型列表、发送时指定模型 |
@@ -563,7 +547,7 @@ App 进入前台
 
 4. **多项目支持**：暂不实现。
 
-5. **默认 Server**：`192.168.180.128:4096`。默认无认证，但需实现 Basic Auth 支持（可选配置）。
+5. **默认 Server**：`192.168.0.80:4096`。默认无认证，但需实现 Basic Auth 支持（可选配置）。
 
 ## 11. 实现起步指南
 
@@ -598,7 +582,7 @@ App 进入前台
 
 ### 11.4 与 OpenCode Server 的对接
 
-默认 Server 地址：`192.168.180.128:4096`（无认证）。若 Server 启用了 `OPENCODE_SERVER_PASSWORD` 等，在 Settings 中配置 Username/Password 即可。确保本机或局域网内有运行中的 OpenCode Server（`opencode serve` 或 `opencode web`）。
+默认 Server 地址：`192.168.0.80:4096`（无认证）。若 Server 启用了 `OPENCODE_SERVER_PASSWORD` 等，在 Settings 中配置 Username/Password 即可。确保本机或局域网内有运行中的 OpenCode Server（`opencode serve` 或 `opencode web`）。
 
 ---
 

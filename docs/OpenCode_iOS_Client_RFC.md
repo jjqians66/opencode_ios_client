@@ -78,7 +78,7 @@
 | UI | SwiftUI | 原生、声明式，与 iOS 17+ 适配最好 |
 | 状态 | Observation (@Observable) | 替代 ObservableObject，减少样板代码 |
 | 网络 | URLSession | 原生，无需 Alamofire；SSE 用 `URLSession` 的 `Delegate` 或 `AsyncSequence` |
-| Markdown | MarkdownUI | 优先使用原生能力；MarkdownUI 支持代码块、链接、列表 |
+| Markdown | MarkdownUI | 支持代码块、链接、列表 |
 | Diff | 自建 View（优先 iOS 原生能力） | 基于 `before`/`after` 做 unified diff 渲染，行级高亮 |
 | 持久化 | UserDefaults + Keychain | 连接信息、模型预设；密码存 Keychain |
 
@@ -87,7 +87,7 @@
 #### 3.1 REST API
 
 - 使用 `URLSession` 封装 `APIClient`
-- 统一 Base URL：`http://<ip>:<port>`，默认 `192.168.180.128:4096`，来自 Settings
+- 统一 Base URL：`http://<ip>:<port>`，默认 `192.168.0.80:4096`，来自 Settings
 - 所有请求附加 Basic Auth header（若配置）
 - 推荐使用 `POST /session/:id/prompt_async` 发送消息，busy 时由服务端排队
 
@@ -177,7 +177,7 @@ final class AppState {
 - **Session 列表**：列出 workspace 下所有已有 Session，作为连接与解析的验证手段
 - **权限**：`permission.asked` 时展示卡片，用户手动批准/拒绝，调用 `POST /session/:id/permissions/:permissionID`
 - **输入**：支持多行，发送用 `prompt_async`；busy 时消息由服务端排队
-- **语音输入**：录音后调用 AI Builder `POST /v1/audio/transcriptions` 转写，结果追加到输入框；token 由用户在 Settings 配置并存 Keychain（不写入仓库）
+- **语音输入**：输入框右侧麦克风按钮；录音后调用 AI Builder `POST /v1/audio/transcriptions` 转写，结果追加到输入框；Base URL 与 token 在 Settings → Speech Recognition 配置并存 Keychain
 - **Abort**：提供按钮调用 `POST /session/:id/abort`
 
 ### 7. 文件与 Diff

@@ -35,11 +35,6 @@ OpenCodeClient/
 └── OpenCodeClientUITests/   # UI 测试
 ```
 
-## 代码规模
-
-- 主程序：约 3,350 行 Swift
-- 测试：约 680 行 Swift
-
 ## 文档
 
 - `docs/OpenCode_iOS_Client_PRD.md` — 产品需求
