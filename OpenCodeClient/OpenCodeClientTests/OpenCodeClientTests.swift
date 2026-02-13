@@ -672,6 +672,32 @@ struct LayoutConstantsTests {
     }
 }
 
+// MARK: - Speech Recognition Defaults
+
+struct SpeechRecognitionDefaultsTests {
+
+    @Test @MainActor func speechRecognitionDefaultPromptAndTerminology() async {
+        // Clear stored values so AppState falls back to defaults
+        UserDefaults.standard.removeObject(forKey: "aiBuilderCustomPrompt")
+        UserDefaults.standard.removeObject(forKey: "aiBuilderTerminology")
+        let state = AppState()
+        #expect(state.aiBuilderCustomPrompt.contains("snake_case"))
+        #expect(state.aiBuilderCustomPrompt.contains("lowercase"))
+        #expect(state.aiBuilderTerminology == "adhoc_jobs, life_consulting, survey_sessions, thought_review")
+    }
+
+    @Test @MainActor func speechRecognitionPersistence() async {
+        let state = AppState()
+        state.aiBuilderCustomPrompt = "test prompt"
+        state.aiBuilderTerminology = "foo, bar"
+        #expect(state.aiBuilderCustomPrompt == "test prompt")
+        #expect(state.aiBuilderTerminology == "foo, bar")
+        // Restore defaults for other tests
+        UserDefaults.standard.removeObject(forKey: "aiBuilderCustomPrompt")
+        UserDefaults.standard.removeObject(forKey: "aiBuilderTerminology")
+    }
+}
+
 // MARK: - APIConstants Tests
 
 struct APIConstantsTests {
