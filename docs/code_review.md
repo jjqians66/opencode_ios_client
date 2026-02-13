@@ -31,6 +31,23 @@ Review 范围以 iOS 端为主（`OpenCodeClient/`），以及与 OpenCode serve
 - SSE 事件先在一个非 UI 的 reducer 层做「解析/过滤/归并」，再更新 store
 - 将轮询与重试策略从 state 中抽成 `SyncCoordinator`
 
+更详细的落地规划（建议按 3 个小阶段做，每阶段都能独立合并并有 test）：
+
+1. **把 side-effect 抽出 AppState（不动 UI 绑定）**
+   - 新建 `Services/OpenCodeService`（或 `OpenCodeAPI`）封装：health/sessions/messages/files/todos/abort/summarize…
+   - `AppState` 只持有一个 service 实例，并把所有 `apiClient.*` 访问迁移到 service
+   - 好处：把“怎么发请求/怎么组 URL/怎么处理错误”集中，AppState 只做流程
+
+2. **把 SSE 与 polling 策略抽成 coordinator（可 mock）**
+   - 新建 `SyncCoordinator`：负责 connect/reconnect/backoff、message.updated 后的刷新策略、发送后的 fallback polling
+   - `SyncCoordinator` 向外暴露 `AsyncStream<DomainEvent>`（例如 `.messagesChanged(sessionID)`、`.permissionAsked(...)`）
+   - `AppState` 只做订阅 + 调用 service 拉取 + 写入 stores
+
+3. **引入 reducer/handler（提升可测性）**
+   - 新建 `SSEEventReducer`：输入 `SSEEvent` + `currentSessionID` → 输出 `DomainEvent`（或 `[]`）
+   - 这层可以纯函数化，单测覆盖：session 过滤、delta 合并触发条件、todo 更新等
+   - 最终结果：`AppState` 变薄，测试重点转移到 reducer/service/coordinator
+
 补充观察（当前代码状态）：
 
 - 已做了第一步“拆数据不拆行为”：新增 `Stores/SessionStore.swift`、`Stores/MessageStore.swift`、`Stores/FileStore.swift`、`Stores/TodoStore.swift`，但 `AppState.swift` 仍然承载了几乎全部 side-effect（API/SSE/polling）与业务流程
@@ -57,7 +74,9 @@ Review 范围以 iOS 端为主（`OpenCodeClient/`），以及与 OpenCode serve
 当前实现进展：
 
 - ✅ 已增加 `Accept: text/event-stream`、`Cache-Control: no-cache`
-- ❗仍建议把解析从“逐字节 Character”改为“按 UTF-8 buffer 解码 + 按 event 切分”，并补齐 `onTermination` / retry/backoff
+- ✅ 已把解析从“逐字节 Character”改为“按 UTF-8 buffer 解码 + 按 event 切分”，并支持多行 `data:` + keep-alive comment
+- ✅ `AsyncThrowingStream` task 已绑定 `continuation.onTermination`
+- ✅ `AppState.connectSSE()` 已增加指数退避重连（断线/服务端重启时更稳）
 
 ### 1.3 SSE 事件未按 session 过滤导致潜在的跨 session 污染
 
@@ -91,7 +110,9 @@ Review 范围以 iOS 端为主（`OpenCodeClient/`），以及与 OpenCode serve
 - ✅ 已新增 `OpenCodeClient/OpenCodeClient/Utils/PathNormalizer.swift`，并用于 `Part.filePathsForNavigation`
 - ✅ 已补齐：percent-encoding decode（含双重编码的常见情况）、`file://` URL 兼容、以及最基本的 `../` 防御性处理
 - ✅ 已补齐：对 tool payload 里的“绝对路径”做 workspace 前缀剥离（使 read/write/apply_patch 等路径能正确打开文件预览）
-- ❗仍缺：URL encode/decode 的一致性策略（哪些地方 encode/哪些地方只 normalize）、以及 empty content 的可观测性（404/空内容时的结构化日志）
+- ✅ 已补齐：把 `.` / `..` segment 过滤成“安全路径”（避免 `src/../x` 这类路径污染 API 请求）
+- ✅ 已补齐：empty content 可观测性（`loadFileContent` 发现 text 为空时记录 base/raw/resolved/sessionID）
+- ❗仍缺：URL encode/decode 的一致性策略（哪些地方 encode/哪些地方只 normalize）
 
 ## 2. 设计方面的缺陷
 
@@ -132,14 +153,7 @@ RFC/PRD 提到 UserDefaults + Keychain。
 
 ### 2.4 Todo 渲染的“重复表达”可能让用户困惑
 
-当前实现进展：✅ 已选方案 B
-
-- `ToolPartView` 仅在 `todowrite` tool 卡片内渲染 todo（且优先展示 tool 自带 todos，否则回退到 `state.sessionTodos`）
-- UI 未做 Chat 顶部常驻 Task List 卡片
-
-仍可改进：
-
-- `state.sessionTodos` 仍在后台持续维护（SSE `todo.updated` + `/session/:id/todo` 拉取），但 Chat 没有一个“权威展示位”；后续如果要强调 todo，可在 Files/Chat 选一处作为主入口并减少重复
+（当前不是优先项；后续若要强化 todo，建议先确定“权威展示位”再做 UI 统一。）
 
 ### 2.5 Observability：大量 `print` 不利于线上定位
 
@@ -168,6 +182,8 @@ RFC/PRD 提到 UserDefaults + Keychain。
 - 以 `Data` buffer 累积 bytes，使用 `String(decoding:buffer,as:UTF8.self)` 或 `String(data:...,encoding:.utf8)` 解码
 - 按 SSE 标准用空行分隔 event，合并多行 `data:`
 
+当前实现进展：✅ 已完成（见 1.2）
+
 ### 3.2 App 的“网络安全边界”需要在文档里说清楚
 
 当前设计默认局域网 HTTP + Basic Auth（可选），并在 `Info.plist` 允许 local networking。
@@ -176,6 +192,11 @@ RFC/PRD 提到 UserDefaults + Keychain。
 
 - 在 `docs/` 明确：仅推荐局域网；公网必须上 TLS + 更安全的鉴权（token/OAuth/mtls 视场景）
 - 在 UI（Settings）给出提示：当前连接 scheme（http/https）与风险
+
+当前实现进展：
+
+- ✅ 客户端逻辑：LAN 允许 `http://`，WAN 强制要求 `https://`（否则直接提示错误，不发请求）
+- ✅ Settings 展示 scheme + warning（http 显示橙色/红色提示）
 
 ### 3.3 默认 server IP/端口与个人环境绑定
 
@@ -189,6 +210,11 @@ RFC/PRD 提到 UserDefaults + Keychain。
 
 - 默认值改为 `127.0.0.1:4096` / `localhost:4096` 或空值（首次引导填写）
 - 文档里提供示例，而不是硬编码在代码里
+
+当前实现进展：✅ 已完成
+
+- `APIClient.defaultServer` 改为 `127.0.0.1:4096`
+- `AppState.serverURL` 仍存 UserDefaults，用户可在 Settings 修改
 
 ### 3.4 Tool 输出的结构化数据展示能力偏弱
 
@@ -212,6 +238,11 @@ RFC/PRD 提到 UserDefaults + Keychain。
 
 - 把 `OpenCodeClient/build_log*.txt` 加到 `.gitignore`，或移出 repo
 - 文档中的环境变量示例统一用 `YOUR_PASSWORD_HERE` / `CHANGEME` 并强调“示例”
+
+当前实现进展：
+
+- ✅ `OpenCodeClient/build_log*.txt` 已从 git 删除，并加入 `.gitignore`
+- ✅ 语音转写 token 通过 Settings 配置并存 Keychain（不写入仓库）
 
 ### 4.2 网络通信安全
 

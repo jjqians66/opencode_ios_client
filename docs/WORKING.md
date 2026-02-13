@@ -7,7 +7,7 @@
 - **最后更新**：2026-02-12
 - **Phase**：Phase 3 完成（Think Streaming + iPad 分栏）
 - **编译**：✅ 通过
-- **测试**：✅ 55 个单元测试通过
+- **测试**：✅ 60 个单元测试通过
 
 ## 已完成
 
@@ -40,6 +40,9 @@
 - [x] PathNormalizer 加固：percent-encoding 解码、file:// 兼容、最基本的 ../ 防御、绝对路径 → workspace 相对路径解析（修复 tool read 预览空内容类问题）
 - [x] 文档同步：PRD/RFC 补充 iPad 三列网格说明；lessons.md 增加“PRD/RFC→code→test→build/test”的工作流
 - [x] code_review.md 更新：补齐全 repo review 新发现项 + Security Review（准备推 GitHub 前检查）
+- [x] 语音输入（AI Builder Speech Recognition）：录音（mic 权限）→ 调用 `/v1/audio/transcriptions` → 文本追加到输入框
+- [x] iPad 外接键盘：回车发送（submitLabel/send + keyboardShortcut Return）
+- [x] 网络安全边界：WAN 禁止 http://（强制 https://）；Settings 展示 scheme 与提示
 
 ## 待办
 
