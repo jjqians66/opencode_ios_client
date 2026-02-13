@@ -5,6 +5,18 @@
 
 import SwiftUI
 
+private enum MessageGroupItem: Identifiable {
+    case user(MessageWithParts)
+    case assistantMerged([MessageWithParts])
+
+    var id: String {
+        switch self {
+        case .user(let m): return "user-\(m.info.id)"
+        case .assistantMerged(let msgs): return "assistant-\(msgs.map(\.info.id).joined(separator: "-"))"
+        }
+    }
+}
+
 struct ChatTabView: View {
     @Bindable var state: AppState
     var showSettingsInToolbar: Bool = false
@@ -24,6 +36,32 @@ struct ChatTabView: View {
 
     private var currentPermissions: [PendingPermission] {
         state.pendingPermissions.filter { $0.sessionID == state.currentSessionID }
+    }
+
+    /// 合并同一 assistant turn 的连续 step-only 消息，使 tool 卡片在一个 grid 内连续显示
+    private var messageGroups: [MessageGroupItem] {
+        var result: [MessageGroupItem] = []
+        var i = 0
+        while i < state.messages.count {
+            let msg = state.messages[i]
+            if msg.info.isUser {
+                result.append(.user(msg))
+                i += 1
+                continue
+            }
+            var assistantBatch: [MessageWithParts] = []
+            while i < state.messages.count {
+                let m = state.messages[i]
+                if m.info.isUser { break }
+                assistantBatch.append(m)
+                i += 1
+                if m.parts.contains(where: { $0.isText }) { break }
+            }
+            if !assistantBatch.isEmpty {
+                result.append(.assistantMerged(assistantBatch))
+            }
+        }
+        return result
     }
 
     var body: some View {
@@ -124,12 +162,19 @@ struct ChatTabView: View {
                                     }
                                 }
                             }
-                        ForEach(state.messages, id: \.info.id) { msg in
-                            MessageRowView(
-                                message: msg,
-                                state: state,
-                                streamingPart: msg.info.id == state.messages.last?.info.id ? streamingReasoningPart : nil
-                            )
+                        ForEach(messageGroups) { group in
+                            switch group {
+                            case .user(let msg):
+                                MessageRowView(message: msg, state: state, streamingPart: nil)
+                            case .assistantMerged(let msgs):
+                                let merged = MessageWithParts(info: msgs.first!.info, parts: msgs.flatMap(\.parts))
+                                let isLast = msgs.last?.info.id == state.messages.last?.info.id
+                                MessageRowView(
+                                    message: merged,
+                                    state: state,
+                                    streamingPart: isLast ? streamingReasoningPart : nil
+                                )
+                            }
                         }
                             Color.clear
                                 .frame(height: 1)

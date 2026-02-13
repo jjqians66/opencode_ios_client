@@ -41,17 +41,12 @@ struct MessageRowView: View {
         }
 
         for part in message.parts {
-            // Reasoning: 不 flush，不打断 tool/patch 网格；streaming 时由 streamingPart 单独渲染
-            if part.isReasoning {
-                continue
-            }
+            if part.isReasoning { continue }
             if part.isTool || part.isPatch {
                 buffer.append(part)
                 continue
             }
-            if part.isStepStart || part.isStepFinish {
-                continue
-            }
+            if part.isStepStart || part.isStepFinish { continue }
             if part.isText {
                 flushBuffer()
                 blocks.append(.text(part))
