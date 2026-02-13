@@ -9,14 +9,18 @@ struct PermissionCardView: View {
     let permission: PendingPermission
     let onRespond: (Bool) -> Void
 
+    private let accent = Color.orange
+    private let cornerRadius: CGFloat = 12
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield.fill")
-                    .foregroundStyle(.orange.gradient)
+                    .foregroundStyle(accent)
                     .font(.title3)
                 Text("Permission Required")
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(accent)
             }
             Text(permission.description)
                 .font(.caption)
@@ -44,11 +48,11 @@ struct PermissionCardView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(accent.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(accent.opacity(0.14), lineWidth: 1)
         )
     }
 }

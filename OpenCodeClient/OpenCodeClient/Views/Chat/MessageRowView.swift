@@ -90,7 +90,11 @@ struct MessageRowView: View {
                     .padding(.vertical, 10)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.accentColor.opacity(0.08))
+            .background(Color.accentColor.opacity(0.07))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.accentColor.opacity(0.14), lineWidth: 1)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 14))
 
             if let model = message.info.resolvedModel {
