@@ -4,70 +4,42 @@
 //
 
 import Foundation
-import Security
-import CryptoKit
+import Crypto
 
 enum SSHKeyManager {
-    private static let privateKeyTag = "com.opencode.ssh.privateKey"
-    private static let publicKeyKey = "sshPublicKey"
+    private static let privateKeyKeychainKey = "sshPrivateKey.ed25519"
+    private static let publicKeyUserDefaultsKey = "sshPublicKey.ed25519"
+    private static let keyComment = "opencode-ios"
     
     static func generateKeyPair() throws -> (privateKey: Data, publicKey: String) {
-        let privateKey = P256.Signing.PrivateKey()
-        
-        let privateKeyData = privateKey.rawRepresentation
-        let publicKeyData = privateKey.publicKey.rawRepresentation
-        
-        let publicKeyBase64 = publicKeyData.base64EncodedString()
-        let publicKeyOpenSSH = "ssh-ed25519 \(publicKeyBase64) opencode-ios"
-        
-        return (privateKeyData, publicKeyOpenSSH)
+        let privateKey = Curve25519.Signing.PrivateKey()
+
+        let privateKeyData = Data(privateKey.rawRepresentation)
+        let openSSHPublicKey = makeOpenSSHEd25519PublicKey(publicKeyRaw: Data(privateKey.publicKey.rawRepresentation))
+        let publicKeyLine = "ssh-ed25519 \(openSSHPublicKey) \(keyComment)"
+
+        return (privateKeyData, publicKeyLine)
     }
-    
+
     static func savePrivateKey(_ key: Data) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: privateKeyTag,
-            kSecValueData as String: key,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
-            kSecAttrKeyType as String: kSecAttrKeyTypeEC,
-            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate
-        ]
-        
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
+        KeychainHelper.save(key, forKey: privateKeyKeychainKey)
     }
     
     static func loadPrivateKey() -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: privateKeyTag,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return data
+        KeychainHelper.loadData(forKey: privateKeyKeychainKey)
     }
     
     static func savePublicKey(_ publicKey: String) {
-        UserDefaults.standard.set(publicKey, forKey: publicKeyKey)
+        UserDefaults.standard.set(publicKey, forKey: publicKeyUserDefaultsKey)
     }
     
     static func getPublicKey() -> String? {
-        UserDefaults.standard.string(forKey: publicKeyKey)
+        UserDefaults.standard.string(forKey: publicKeyUserDefaultsKey)
     }
     
     static func deleteKeyPair() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: privateKeyTag
-        ]
-        SecItemDelete(query as CFDictionary)
-        UserDefaults.standard.removeObject(forKey: publicKeyKey)
+        KeychainHelper.delete(privateKeyKeychainKey)
+        UserDefaults.standard.removeObject(forKey: publicKeyUserDefaultsKey)
     }
     
     static func hasKeyPair() -> Bool {
@@ -75,7 +47,7 @@ enum SSHKeyManager {
     }
     
     static func ensureKeyPair() throws -> String {
-        if let existing = getPublicKey() {
+        if let existing = getPublicKey(), loadPrivateKey() != nil {
             return existing
         }
         
@@ -88,5 +60,26 @@ enum SSHKeyManager {
     static func rotateKey() throws -> String {
         deleteKeyPair()
         return try ensureKeyPair()
+    }
+
+    // OpenSSH public key format (base64 of SSH wire encoding):
+    // string "ssh-ed25519" + string keyBytes
+    private static func makeOpenSSHEd25519PublicKey(publicKeyRaw: Data) -> String {
+        var blob = Data()
+        blob.append(sshString("ssh-ed25519"))
+        blob.append(sshString(publicKeyRaw))
+        return blob.base64EncodedString()
+    }
+
+    private static func sshString(_ s: String) -> Data {
+        sshString(Data(s.utf8))
+    }
+
+    private static func sshString(_ data: Data) -> Data {
+        var out = Data()
+        var len = UInt32(data.count).bigEndian
+        withUnsafeBytes(of: &len) { out.append(contentsOf: $0) }
+        out.append(data)
+        return out
     }
 }

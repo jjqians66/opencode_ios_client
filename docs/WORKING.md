@@ -11,15 +11,16 @@
 
 ## 进行中
 
-- [ ] **SSH Tunnel 远程访问**（基础设施完成，待添加 Citadel 依赖）：
+- [x] **SSH Tunnel 远程访问**（Citadel 集成完成）：
   - [x] SSHKeyManager：Ed25519 密钥生成/存储（Keychain）/公钥显示
   - [x] SSHTunnelManager：连接/断开/状态
   - [x] SSHTunnelConfig 数据模型
   - [x] Settings UI：SSH Tunnel 配置区域
   - [x] AppState 集成：SSH 连接状态
   - [x] 单元测试
-  - [ ] 添加 Citadel 依赖（SPM）
-  - [ ] 实现实际 SSH 连接逻辑
+  - [x] 添加 Citadel 依赖（SPM）
+  - [x] 实现实际 SSH 连接逻辑（本地 127.0.0.1:4096 → SSH DirectTCPIP → VPS 127.0.0.1:remotePort）
+  - [x] 修复 project deployment target（避免 UITests 无法在 simulator 上运行）
 - [ ] **UI 改进**（低优先级）：busy 状态用菊花代替圆形按钮
 
 ## 已完成

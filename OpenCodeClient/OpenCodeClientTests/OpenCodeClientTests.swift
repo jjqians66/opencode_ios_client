@@ -786,10 +786,11 @@ struct SSHTunnelTests {
     }
 
     @Test func sshErrorDescriptions() {
-        #expect(SSHError.notImplemented.errorDescription?.contains("Citadel") == true)
         #expect(SSHError.connectionFailed("timeout").errorDescription?.contains("timeout") == true)
         #expect(SSHError.authenticationFailed.errorDescription?.contains("Authentication") == true)
         #expect(SSHError.keyNotFound.errorDescription?.contains("key not found") == true)
+        #expect(SSHError.invalidKeyFormat.errorDescription?.contains("Invalid") == true)
+        #expect(SSHError.tunnelFailed("x").errorDescription?.contains("Tunnel") == true)
     }
 
     @Test @MainActor func sshTunnelManagerInitialStatus() {

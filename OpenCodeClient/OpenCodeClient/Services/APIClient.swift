@@ -419,7 +419,6 @@ struct ConfigProvider: Decodable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decode(String.self, forKey: .id)) ?? ""
         name = try? c.decode(String.self, forKey: .name)
-
         if let dict = try? c.decode([String: ProviderModel].self, forKey: .models) {
             var fixed: [String: ProviderModel] = [:]
             fixed.reserveCapacity(dict.count)
