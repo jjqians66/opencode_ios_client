@@ -39,6 +39,11 @@ struct ContentView: View {
             state.disconnectSSE()
         }
         .preferredColorScheme(state.themePreference == "light" ? .light : state.themePreference == "dark" ? .dark : nil)
+        .onChange(of: state.selectedTab) { oldTab, newTab in
+            if oldTab == 2 && newTab != 2 {
+                Task { await state.refresh() }
+            }
+        }
         .sheet(item: Binding(
             get: { state.fileToOpenInFilesTab.map { FilePathWrapper(path: $0) } },
             set: { newValue in
@@ -61,7 +66,9 @@ struct ContentView: View {
             }
             .presentationDetents([.large])  // iPad: 预览窗默认大尺寸
         }
-        .sheet(isPresented: $showSettingsSheet) {
+        .sheet(isPresented: $showSettingsSheet, onDismiss: {
+            Task { await state.refresh() }
+        }) {
             NavigationStack {
                 SettingsTabView(state: state)
                     .toolbar {

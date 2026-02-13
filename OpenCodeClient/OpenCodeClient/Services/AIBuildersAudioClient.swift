@@ -80,4 +80,35 @@ enum AIBuildersAudioClient {
 
         return try JSONDecoder().decode(TranscriptionResponse.self, from: data)
     }
+
+    /// 测试 AI Builder 连接（调用 embeddings API，验证 token 有效）
+    static func testConnection(baseURL: String, token: String) async throws {
+        let trimmedBase = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBase.isEmpty else { throw AIBuildersAudioError.invalidBaseURL }
+        guard !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AIBuildersAudioError.missingToken }
+
+        let normalizedBase: String = {
+            if trimmedBase.hasPrefix("http://") || trimmedBase.hasPrefix("https://") { return trimmedBase }
+            return "https://\(trimmedBase)"
+        }()
+
+        guard let url = URL(string: "\(normalizedBase)/v1/embeddings") else {
+            throw AIBuildersAudioError.invalidBaseURL
+        }
+
+        let body = try JSONEncoder().encode(["input": "ok"])
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AIBuildersAudioError.invalidResponse
+        }
+        guard http.statusCode < 400 else {
+            throw AIBuildersAudioError.httpError(statusCode: http.statusCode, body: data)
+        }
+    }
 }

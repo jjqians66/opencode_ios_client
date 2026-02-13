@@ -131,11 +131,11 @@ final class AppState {
         _username = UserDefaults.standard.string(forKey: Self.usernameKey) ?? ""
         _password = KeychainHelper.load(forKey: Self.passwordKeychainKey) ?? ""
 
-        _aiBuilderBaseURL = UserDefaults.standard.string(forKey: Self.aiBuilderBaseURLKey) ?? "https://www.ai-builders.com/backend"
+        _aiBuilderBaseURL = UserDefaults.standard.string(forKey: Self.aiBuilderBaseURLKey) ?? "https://space.ai-builders.com/backend"
         _aiBuilderToken = KeychainHelper.load(forKey: Self.aiBuilderTokenKeychainKey) ?? ""
     }
 
-    private var _aiBuilderBaseURL: String = "https://www.ai-builders.com/backend"
+    private var _aiBuilderBaseURL: String = "https://space.ai-builders.com/backend"
     var aiBuilderBaseURL: String {
         get { _aiBuilderBaseURL }
         set {
@@ -156,6 +156,8 @@ final class AppState {
             }
         }
     }
+    var aiBuilderConnectionError: String? = nil
+    var aiBuilderConnectionOK: Bool = false
     var isConnected: Bool = false
     var serverVersion: String?
     var connectionError: String?
@@ -400,6 +402,32 @@ final class AppState {
             language: language
         )
         return resp.text
+    }
+
+    func testAIBuilderConnection() async {
+        aiBuilderConnectionError = nil
+        aiBuilderConnectionOK = false
+        let token = aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            aiBuilderConnectionError = "Token is empty"
+            return
+        }
+        let base = aiBuilderBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await AIBuildersAudioClient.testConnection(baseURL: base, token: token)
+            aiBuilderConnectionOK = true
+        } catch {
+            switch error {
+            case AIBuildersAudioError.missingToken:
+                aiBuilderConnectionError = "Token is empty"
+            case AIBuildersAudioError.invalidBaseURL:
+                aiBuilderConnectionError = "Invalid base URL"
+            case AIBuildersAudioError.httpError(let statusCode, _):
+                aiBuilderConnectionError = "HTTP \(statusCode)"
+            default:
+                aiBuilderConnectionError = error.localizedDescription
+            }
+        }
     }
 
     func toggleFileExpanded(_ path: String) {

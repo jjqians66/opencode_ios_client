@@ -101,6 +101,14 @@ struct FilesTabView: View {
 struct DiffDetailView: View {
     let diff: FileDiff
 
+    private var beforeLines: [String] {
+        diff.before.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    }
+
+    private var afterLines: [String] {
+        diff.after.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             ScrollView(.vertical, showsIndicators: true) {
@@ -111,32 +119,10 @@ struct DiffDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if !diff.before.isEmpty || !diff.after.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Before:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(diff.before)
-                                .font(.system(.caption, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                                .padding(8)
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(4)
+                        VStack(alignment: .leading, spacing: 8) {
+                            lineBlock(title: "Before", lines: beforeLines, color: Color.red.opacity(0.15))
+                            lineBlock(title: "After", lines: afterLines, color: Color.green.opacity(0.15))
                         }
-                        .frame(minWidth: 280, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("After:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(diff.after)
-                                .font(.system(.caption, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                                .padding(8)
-                                .background(Color.green.opacity(0.1))
-                                .cornerRadius(4)
-                        }
-                        .frame(minWidth: 280, alignment: .leading)
                     }
                 }
                 .padding()
@@ -146,5 +132,24 @@ struct DiffDetailView: View {
         }
         .navigationTitle(diff.file)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private func lineBlock(title: String, lines: [String], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(title):")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(color)
+            }
+        }
+        .frame(minWidth: 280, alignment: .leading)
     }
 }

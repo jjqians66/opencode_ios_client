@@ -4,16 +4,17 @@
 
 ## 1. 你需要准备什么
 
-- 一个 AI Builder token（环境变量名：`AI_BUILDER_TOKEN`）
+- 一个 AI Builder token（从 ai-builders.com 获取）
 
 ## 2. iOS 端如何配置（不会提交到 git）
 
-在 App 的 Settings 里：
+**iOS App 不读环境变量**。配置方式：
 
-- `AI Builder Base URL`：默认 `https://www.ai-builders.com/backend`
-- `AI Builder Token`：粘贴你的 token
+1. 打开 App → 进入 **Settings**（齿轮图标）
+2. 找到 **AI Builder Base URL**（默认 `https://space.ai-builders.com/backend`）和 **AI Builder Token**
+3. 在 **AI Builder Token** 里粘贴你的 token
 
-说明：token 会存到 **Keychain**，不会写入仓库、也不会出现在源码里。
+说明：token 会存到 **Keychain**，不会写入仓库、也不会出现在源码里。无需在 Xcode 里配置环境变量。
 
 ## 3. 使用方式
 
