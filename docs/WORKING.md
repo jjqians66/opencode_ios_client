@@ -57,9 +57,12 @@
 - [x] **Test Connection 转圈状态**：Settings AI Builder 连接测试时显示 "Testing..." + ProgressView
 - [x] **发送/录音按钮上下并排**：iPhone/iPad 均改为 VStack 布局，send 在上、mic 在下、abort（如有）在最下
 - [x] **Session 列表按更新时间排序**：使用 `sortedSessions` 按 `time.updated` 降序排列
+- [x] **Session 行时间显示按更新时间**：Session 列表的“xx 分钟前”改为 `time.updated`
 - [x] **切换 Session 空白 bug 修复**：切换时先清空 messages/parts/streaming 状态再加载新 session 数据
 - [x] **服务端错误信息展示**：assistant message 带 `error.data.message` 时在消息中以红色卡片显示
 - [x] **iPad 侧边栏上下分区**：左侧改为上 Files（File Tree）下 Sessions（列表点击切换右侧 Chat Session）
+- [x] **Workspace 左栏等高**：iPad Workspace 左栏 Files/Sessions 两块高度 1:1
+- [x] **iPad Workspace 文件预览用 sheet**：在 Workspace 左侧 File Tree 点文件不再 push 到窄栏，改为全局预览 sheet
 - [x] **todowrite 仅渲染 todo**：Tool 卡片不再显示 todowrite 的 raw JSON input/output，只保留渲染后的 todo 列表
 
 ## 待办

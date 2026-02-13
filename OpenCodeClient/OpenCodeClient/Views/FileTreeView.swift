@@ -10,8 +10,13 @@ struct FileTreeView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var isLoadingChildren: Set<String> = []
 
+    /// Force file preview to use the global sheet (used by iPad split sidebar).
+    var forceSheetPreview: Bool = false
+
     /// iPad 分栏时左栏窄，点文件应弹 sheet 预览；iPhone 时在 Tab 内 push
-    private var useSheetForFilePreview: Bool { sizeClass == .regular }
+    private var useSheetForFilePreview: Bool {
+        forceSheetPreview || sizeClass == .regular
+    }
 
     var body: some View {
         List {

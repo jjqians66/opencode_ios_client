@@ -78,7 +78,7 @@ struct SessionRowView: View {
                         .foregroundStyle(.primary)
 
                     HStack(spacing: 8) {
-                        Text(formattedDate(session.time.created))
+                        Text(formattedDate(session.time.updated))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 

@@ -11,18 +11,19 @@ import SwiftUI
 struct SplitSidebarView: View {
     @Bindable var state: AppState
 
-    private let filesRatio: CGFloat = 0.62
-    private let minFilesHeight: CGFloat = 260
-    private let minSessionsHeight: CGFloat = 220
+    private let minPaneHeight: CGFloat = 220
+    private let dividerHeight: CGFloat = 1
 
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                let filesHeight = max(minFilesHeight, geo.size.height * filesRatio)
-                let sessionsHeight = max(minSessionsHeight, geo.size.height - filesHeight)
+                let available = max(0, geo.size.height - dividerHeight)
+                let half = max(minPaneHeight, available / 2)
+                let filesHeight = half
+                let sessionsHeight = max(minPaneHeight, available - half)
 
                 VStack(spacing: 0) {
-                    FileTreeView(state: state)
+                    FileTreeView(state: state, forceSheetPreview: true)
                         .searchable(text: $state.fileSearchQuery, prompt: "Search files")
                         .onSubmit(of: .search) {
                             Task { await state.searchFiles(query: state.fileSearchQuery) }
@@ -41,6 +42,7 @@ struct SplitSidebarView: View {
                         .frame(height: filesHeight)
 
                     Divider()
+                        .frame(height: dividerHeight)
 
                     SessionsSidebarList(state: state)
                         .frame(height: sessionsHeight)
