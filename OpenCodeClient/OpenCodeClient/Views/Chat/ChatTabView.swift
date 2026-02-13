@@ -14,6 +14,10 @@ struct ChatTabView: View {
     @State private var showSessionList = false
     @State private var showRenameAlert = false
     @State private var renameText = ""
+    @State private var recorder = AudioRecorder()
+    @State private var isRecording = false
+    @State private var isTranscribing = false
+    @State private var speechError: String?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var useGridCards: Bool { sizeClass == .regular }
@@ -136,6 +140,10 @@ struct ChatTabView: View {
                     TextField("Ask anything...", text: $inputText, axis: .vertical)
                         .textFieldStyle(.plain)
                         .lineLimit(3...8)
+                        .submitLabel(.send)
+                        .onSubmit {
+                            sendCurrentInput()
+                        }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(Color(.systemGray6))
@@ -146,17 +154,22 @@ struct ChatTabView: View {
                         )
 
                     Button {
-                        Task {
-                            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !text.isEmpty else { return }
-                            inputText = ""
-                            isSending = true
-                            let success = await state.sendMessage(text)
-                            isSending = false
-                            if !success {
-                                inputText = text
-                            }
+                        Task { await toggleRecording() }
+                    } label: {
+                        if isTranscribing {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: isRecording ? "mic.circle.fill" : "mic.circle")
+                                .font(.title)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(isRecording ? .red : .secondary)
                         }
+                    }
+                    .disabled(isSending || isTranscribing)
+
+                    Button {
+                        sendCurrentInput()
                     } label: {
                         if isSending {
                             ProgressView()
@@ -168,7 +181,8 @@ struct ChatTabView: View {
                                 .foregroundColor(.accentColor)
                         }
                     }
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
+                    .keyboardShortcut(.return, modifiers: [])
+                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending || isRecording || isTranscribing)
 
                     if state.isBusy {
                         Button {
@@ -223,6 +237,65 @@ struct ChatTabView: View {
                 }
             } message: {
                 Text("输入新标题")
+            }
+            .alert("Speech Recognition", isPresented: Binding(
+                get: { speechError != nil },
+                set: { if !$0 { speechError = nil } }
+            )) {
+                Button("OK") { speechError = nil }
+            } message: {
+                Text(speechError ?? "")
+            }
+        }
+    }
+
+    private func sendCurrentInput() {
+        Task {
+            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            inputText = ""
+            isSending = true
+            let success = await state.sendMessage(text)
+            isSending = false
+            if !success {
+                inputText = text
+            }
+        }
+    }
+
+    private func toggleRecording() async {
+        if isRecording {
+            guard let url = recorder.stop() else {
+                isRecording = false
+                return
+            }
+            isRecording = false
+            isTranscribing = true
+            defer { isTranscribing = false }
+            do {
+                let transcript = try await state.transcribeAudio(audioFileURL: url)
+                let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleaned.isEmpty {
+                    if inputText.isEmpty {
+                        inputText = cleaned
+                    } else {
+                        inputText += " " + cleaned
+                    }
+                }
+            } catch {
+                speechError = error.localizedDescription
+            }
+        } else {
+            let allowed = await recorder.requestPermission()
+            guard allowed else {
+                speechError = "Microphone permission denied"
+                return
+            }
+            do {
+                try recorder.start()
+                isRecording = true
+            } catch {
+                speechError = error.localizedDescription
             }
         }
     }

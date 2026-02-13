@@ -12,6 +12,8 @@ struct SettingsTabView: View {
         NavigationStack {
             Form {
                 Section("Server Connection") {
+                    let info = AppState.serverURLInfo(state.serverURL)
+
                     TextField("Address", text: $state.serverURL)
                         .textContentType(.URL)
                         .autocapitalization(.none)
@@ -22,6 +24,27 @@ struct SettingsTabView: View {
 
                     SecureField("Password", text: $state.password)
                         .textContentType(.password)
+
+                    if let scheme = info.scheme {
+                        LabeledContent("Scheme", value: scheme.uppercased())
+                            .foregroundStyle(scheme == "http" ? .orange : .secondary)
+                    }
+
+                    if info.isLocal {
+                        Text("LAN: HTTP allowed (recommended only on trusted networks)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("WAN: HTTPS required (HTTP will be blocked)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if info.scheme == "http" {
+                        Text("Warning: HTTP is insecure. Use HTTPS for any non-LAN address.")
+                            .font(.caption)
+                            .foregroundStyle(info.isLocal ? .orange : .red)
+                    }
 
                     HStack {
                         Text("Status")
@@ -52,6 +75,19 @@ struct SettingsTabView: View {
                         Text("Light").tag("light")
                         Text("Dark").tag("dark")
                     }
+                }
+
+                Section("Speech Recognition") {
+                    TextField("AI Builder Base URL", text: $state.aiBuilderBaseURL)
+                        .textContentType(.URL)
+                        .autocapitalization(.none)
+
+                    SecureField("AI Builder Token", text: $state.aiBuilderToken)
+                        .textContentType(.password)
+
+                    Text("Token is stored in Keychain and not committed to git.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section("About") {
                     if let version = state.serverVersion {

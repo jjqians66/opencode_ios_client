@@ -158,6 +158,8 @@ OpenCode 绝大多数情况下不会请求 permission，若出现 `permission.as
 
 底部固定输入框，支持多行文本。右侧发送按钮。输入框上方可选显示当前选中模型的小标签。
 
+**语音输入（Speech Recognition）**：输入框右侧提供麦克风按钮。点击开始录音，再次点击停止并调用语音转写 API，将转写文本追加到输入框。token 通过 Settings 配置并存 Keychain，不提交到 git。详见 `docs/SPEECH_RECOGNITION.md`。
+
 **消息队列**：当 session 处于 busy 状态时，用户发送的消息进入队列。OpenCode Server 的 `POST /session/:id/prompt_async` 在服务端已支持队列——busy 时会将消息入队，当前运行结束后自动处理。iOS 端调用 `prompt_async` 即可，无需本地维护队列。若未来 API 变更，可退化为本地队列维护。
 
 **Enter 行为调研结论**：OpenCode Web 客户端在空输入时按 Enter 会调用 abort 终止当前运行；有内容时按 Enter 发送消息（通过 prompt，消息由服务端队列处理）。无「智能 steer」机制，仅终止或排队。iOS 端可提供手动 abort 按钮，无需实现额外 steer。

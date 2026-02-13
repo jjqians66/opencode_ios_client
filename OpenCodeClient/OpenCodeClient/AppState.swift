@@ -5,10 +5,90 @@
 
 import Foundation
 import Observation
+import os
 
 @Observable
 @MainActor
 final class AppState {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "OpenCodeClient",
+        category: "AppState"
+    )
+
+    struct ServerURLInfo {
+        let raw: String
+        let normalized: String?
+        let scheme: String?
+        let host: String?
+        let isLocal: Bool
+        let isAllowed: Bool
+        let warning: String?
+    }
+
+    /// LAN allows HTTP; WAN requires HTTPS.
+    nonisolated static func serverURLInfo(_ raw: String) -> ServerURLInfo {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .init(raw: raw, normalized: nil, scheme: nil, host: nil, isLocal: true, isAllowed: false, warning: "Server address is empty")
+        }
+
+        func parseHost(_ s: String) -> String? {
+            if let u = URL(string: s), let h = u.host { return h }
+            if let u = URL(string: "http://\(s)"), let h = u.host { return h }
+            return nil
+        }
+
+        func isPrivateIPv4(_ host: String) -> Bool {
+            let parts = host.split(separator: ".")
+            guard parts.count == 4,
+                  let a = Int(parts[0]), let b = Int(parts[1]) else { return false }
+            if a == 10 || a == 127 { return true }
+            if a == 192 && b == 168 { return true }
+            if a == 172 && (16...31).contains(b) { return true }
+            if a == 169 && b == 254 { return true }
+            if host == "0.0.0.0" { return true }
+            return false
+        }
+
+        let hasScheme = trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
+        let host = parseHost(trimmed)
+        let isLocal: Bool = {
+            guard let host else { return true }
+            if host == "localhost" { return true }
+            if host.hasSuffix(".local") { return true }
+            if isPrivateIPv4(host) { return true }
+            return false
+        }()
+
+        let scheme: String = {
+            if let u = URL(string: trimmed), let s = u.scheme { return s }
+            return isLocal ? "http" : "https"
+        }()
+
+        if scheme == "http", !isLocal {
+            return .init(
+                raw: raw,
+                normalized: hasScheme ? trimmed : nil,
+                scheme: "http",
+                host: host,
+                isLocal: false,
+                isAllowed: false,
+                warning: "WAN address must use HTTPS (http:// is only allowed on LAN)"
+            )
+        }
+
+        let normalized = hasScheme ? trimmed : "\(scheme)://\(trimmed)"
+        let parsed = URL(string: normalized)
+        return .init(
+            raw: raw,
+            normalized: normalized,
+            scheme: parsed?.scheme,
+            host: parsed?.host,
+            isLocal: isLocal,
+            isAllowed: parsed != nil,
+            warning: parsed == nil ? "Invalid server URL" : (scheme == "http" ? "Using HTTP on LAN" : nil)
+        )
+    }
     private var _serverURL: String = APIClient.defaultServer
     var serverURL: String {
         get { _serverURL }
@@ -43,11 +123,38 @@ final class AppState {
     private static let serverURLKey = "serverURL"
     private static let usernameKey = "username"
     private static let passwordKeychainKey = "password"
+    private static let aiBuilderBaseURLKey = "aiBuilderBaseURL"
+    private static let aiBuilderTokenKeychainKey = "aiBuilderToken"
 
     init() {
         _serverURL = UserDefaults.standard.string(forKey: Self.serverURLKey) ?? APIClient.defaultServer
         _username = UserDefaults.standard.string(forKey: Self.usernameKey) ?? ""
         _password = KeychainHelper.load(forKey: Self.passwordKeychainKey) ?? ""
+
+        _aiBuilderBaseURL = UserDefaults.standard.string(forKey: Self.aiBuilderBaseURLKey) ?? "https://www.ai-builders.com/backend"
+        _aiBuilderToken = KeychainHelper.load(forKey: Self.aiBuilderTokenKeychainKey) ?? ""
+    }
+
+    private var _aiBuilderBaseURL: String = "https://www.ai-builders.com/backend"
+    var aiBuilderBaseURL: String {
+        get { _aiBuilderBaseURL }
+        set {
+            _aiBuilderBaseURL = newValue
+            UserDefaults.standard.set(newValue, forKey: Self.aiBuilderBaseURLKey)
+        }
+    }
+
+    private var _aiBuilderToken: String = ""
+    var aiBuilderToken: String {
+        get { _aiBuilderToken }
+        set {
+            _aiBuilderToken = newValue
+            if newValue.isEmpty {
+                KeychainHelper.delete(Self.aiBuilderTokenKeychainKey)
+            } else {
+                KeychainHelper.save(newValue, forKey: Self.aiBuilderTokenKeychainKey)
+            }
+        }
     }
     var isConnected: Bool = false
     var serverVersion: String?
@@ -123,14 +230,23 @@ final class AppState {
     }
 
     func configure(serverURL: String, username: String? = nil, password: String? = nil) {
-        self.serverURL = serverURL.hasPrefix("http") ? serverURL : "http://\(serverURL)"
+        // Keep raw user input; security normalization happens at request time.
+        self.serverURL = serverURL
         self.username = username ?? ""
         self.password = password ?? ""
     }
 
     func testConnection() async {
         connectionError = nil
-        await apiClient.configure(baseURL: serverURL, username: username.isEmpty ? nil : username, password: password.isEmpty ? nil : password)
+
+        let info = Self.serverURLInfo(serverURL)
+        guard info.isAllowed, let baseURL = info.normalized else {
+            isConnected = false
+            connectionError = info.warning ?? "Invalid server URL"
+            return
+        }
+
+        await apiClient.configure(baseURL: baseURL, username: username.isEmpty ? nil : username, password: password.isEmpty ? nil : password)
         do {
             let health = try await apiClient.health()
             isConnected = health.healthy
@@ -258,7 +374,32 @@ final class AppState {
     }
 
     func loadFileContent(path: String) async throws -> FileContent {
-        try await apiClient.fileContent(path: path)
+        let resolved = PathNormalizer.resolveWorkspaceRelativePath(path, workspaceDirectory: currentSession?.directory)
+        let fc = try await apiClient.fileContent(path: resolved)
+        if fc.type == "text" {
+            let text = fc.content ?? ""
+            if text.isEmpty {
+                let base = Self.serverURLInfo(serverURL).normalized ?? "nil"
+                Self.logger.warning(
+                    "Empty file content. base=\(base, privacy: .public) raw=\(path, privacy: .public) resolved=\(resolved, privacy: .public) session=\(self.currentSessionID ?? "nil", privacy: .public)"
+                )
+            }
+        }
+        return fc
+    }
+
+    func transcribeAudio(audioFileURL: URL, language: String? = nil) async throws -> String {
+        let token = aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { throw AIBuildersAudioError.missingToken }
+
+        let base = aiBuilderBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resp = try await AIBuildersAudioClient.transcribe(
+            baseURL: base,
+            token: token,
+            audioFileURL: audioFileURL,
+            language: language
+        )
+        return resp.text
     }
 
     func toggleFileExpanded(_ path: String) {
@@ -346,16 +487,31 @@ final class AppState {
     func connectSSE() {
         sseTask?.cancel()
         sseTask = Task {
-            let stream = await sseClient.connect(
-                baseURL: serverURL,
-                username: username.isEmpty ? nil : username,
-                password: password.isEmpty ? nil : password
-            )
-            do {
-                for try await event in stream {
-                    await handleSSEEvent(event)
+            var attempt = 0
+            while !Task.isCancelled {
+                let info = Self.serverURLInfo(serverURL)
+                guard info.isAllowed, let baseURL = info.normalized else {
+                    return
                 }
-            } catch {}
+
+                let stream = await sseClient.connect(
+                    baseURL: baseURL,
+                    username: username.isEmpty ? nil : username,
+                    password: password.isEmpty ? nil : password
+                )
+
+                do {
+                    for try await event in stream {
+                        attempt = 0
+                        await handleSSEEvent(event)
+                    }
+                } catch {
+                    // Reconnect with exponential backoff
+                    attempt += 1
+                    let base = min(30.0, pow(2.0, Double(attempt)))
+                    try? await Task.sleep(for: .seconds(base))
+                }
+            }
         }
     }
 
@@ -430,7 +586,6 @@ final class AppState {
     }
 
     func refresh() async {
-        await apiClient.configure(baseURL: serverURL, username: username.isEmpty ? nil : username, password: password.isEmpty ? nil : password)
         await testConnection()
         if isConnected {
             await loadSessions()
