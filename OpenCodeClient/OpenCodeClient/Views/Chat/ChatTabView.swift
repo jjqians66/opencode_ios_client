@@ -206,15 +206,9 @@ struct ChatTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if let status = state.currentSessionStatus {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(statusColor(status))
-                                .frame(width: 6, height: 6)
-                            Text(statusLabel(status))
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
+                    if state.isBusy {
+                        ProgressView()
+                            .scaleEffect(0.8)
                     }
                 }
             }
