@@ -276,6 +276,23 @@ final class AppState {
     var serverVersion: String?
     var connectionError: String?
     var sendError: String?
+
+    // Chat status bar (latest operation + elapsed time)
+    var currentOperationText: String? = nil
+    var currentOperationStartedAt: Date? = nil
+    var lastOperationText: String? = nil
+    var lastOperationElapsedSeconds: Int? = nil
+
+    func currentOperationElapsedString(now: Date = Date()) -> String? {
+        guard let startedAt = currentOperationStartedAt else { return nil }
+        let secs = max(0, Int(now.timeIntervalSince(startedAt)))
+        return String(format: "%d:%02d", secs / 60, secs % 60)
+    }
+
+    func lastOperationElapsedString() -> String? {
+        guard let secs = lastOperationElapsedSeconds else { return nil }
+        return String(format: "%d:%02d", secs / 60, secs % 60)
+    }
     
     /// Unified error handling
     var lastAppError: AppError?
@@ -937,7 +954,32 @@ final class AppState {
                 let statusObj = props["status"]?.value as? [String: Any] {
                 if let status = try? JSONSerialization.data(withJSONObject: statusObj),
                     let decoded = try? JSONDecoder().decode(SessionStatus.self, from: status) {
+                    let prev = sessionStatuses[sessionID]
+                    let wasBusy = isBusySession(prev)
+                    let nowBusy = isBusySession(decoded)
+
                     sessionStatuses[sessionID] = decoded
+
+                    if sessionID == currentSessionID {
+                        if nowBusy {
+                            if !wasBusy || currentOperationStartedAt == nil {
+                                currentOperationStartedAt = Date()
+                            }
+                            currentOperationText = decoded.message
+                                ?? (decoded.type == "retry" ? "Retrying" : "Working")
+                        } else {
+                            // Preserve last operation + duration after finishing.
+                            if wasBusy {
+                                lastOperationText = currentOperationText
+                                if let startedAt = currentOperationStartedAt {
+                                    lastOperationElapsedSeconds = max(0, Int(Date().timeIntervalSince(startedAt)))
+                                }
+                            }
+                            currentOperationText = nil
+                            currentOperationStartedAt = nil
+                        }
+                    }
+
                     if sessionID == currentSessionID, !isBusySession(decoded) {
                         streamingReasoningPart = nil
                         streamingPartTexts = [:]

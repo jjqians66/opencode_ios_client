@@ -137,6 +137,8 @@ struct ChatTabView: View {
                     }
                 }
 
+                ChatStatusBarView(state: state)
+
                 Divider()
                 HStack(alignment: .bottom, spacing: 10) {
                     TextField("Ask anything...", text: $inputText, axis: .vertical)
@@ -384,5 +386,42 @@ struct ChatTabView: View {
         case "retry": return "Retrying..."
         default: return "Idle"
         }
+    }
+}
+
+private struct ChatStatusBarView: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        if state.isBusy {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let op = state.currentOperationText
+                let elapsed = state.currentOperationElapsedString(now: context.date)
+                if let op, let elapsed {
+                    bar(op: op, elapsed: elapsed)
+                }
+            }
+        } else {
+            if let op = state.lastOperationText,
+               let elapsed = state.lastOperationElapsedString() {
+                bar(op: op, elapsed: elapsed)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func bar(op: String, elapsed: String) -> some View {
+        HStack(spacing: 8) {
+            Text(op)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 12)
+            Text(elapsed)
+                .monospacedDigit()
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
     }
 }
