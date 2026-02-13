@@ -377,7 +377,32 @@ final class AppState {
             let loaded = try await apiClient.messages(sessionID: sessionID)
             let loadedMessageIDs = Set(loaded.map { $0.info.id })
             let keepPending = isBusySession(currentSessionStatus)
-            let pendingMessages = keepPending ? messages.filter({ $0.info.id.hasPrefix("temp-user-") }) : []
+            let pendingMessages: [MessageWithParts] = {
+                guard keepPending else { return [] }
+                let pending = messages.filter({ $0.info.id.hasPrefix("temp-user-") })
+                guard let lastLoadedUser = loaded.last(where: { $0.info.isUser }) else { return pending }
+
+                func normalizeEpochMs(_ raw: Int) -> Int {
+                    // Server timestamps may be seconds or milliseconds.
+                    if raw > 0 && raw < 10_000_000_000 { return raw * 1000 }
+                    return raw
+                }
+
+                let lastLoadedText = (lastLoadedUser.parts.first(where: { $0.isText })?.text ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let lastLoadedCreated = normalizeEpochMs(lastLoadedUser.info.time.created)
+
+                return pending.filter { m in
+                    guard m.info.isUser else { return true }
+                    let text = (m.parts.first(where: { $0.isText })?.text ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty, text == lastLoadedText else { return true }
+
+                    let created = normalizeEpochMs(m.info.time.created)
+                    if created == 0 || lastLoadedCreated == 0 { return false }
+                    return abs(lastLoadedCreated - created) > 10 * 60 * 1000
+                }
+            }()
 
             let draftMessages = messages.filter {
                 streamingDraftMessageIDs.contains($0.info.id) && !loadedMessageIDs.contains($0.info.id)

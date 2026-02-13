@@ -315,11 +315,13 @@ struct ChatTabView: View {
     }
 
     private func sendCurrentInput() {
+        guard !isSending else { return }
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+
+        inputText = ""
+        isSending = true
         Task {
-            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return }
-            inputText = ""
-            isSending = true
             let success = await state.sendMessage(text)
             isSending = false
             if !success {
