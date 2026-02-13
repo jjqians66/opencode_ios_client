@@ -531,7 +531,10 @@ struct ChatTabView: View {
             .joined(separator: "|")
         let sid = state.currentSessionID ?? ""
         let status = state.currentSessionStatus?.type ?? ""
-        let activity = runningTurnActivity.map { "\($0.text)-\($0.elapsedSeconds())" } ?? ""
+        let activity = runningTurnActivity.map {
+            let state = ($0.state == .running) ? "running" : "completed"
+            return "\($0.id)-\($0.text)-\(state)"
+        } ?? ""
         return "\(perm)-\(msg)-\(stream)-\(sid)-\(status)-\(activity)"
     }
 
