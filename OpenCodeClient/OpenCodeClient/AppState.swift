@@ -247,6 +247,32 @@ final class AppState {
     var serverVersion: String?
     var connectionError: String?
     var sendError: String?
+    
+    /// Unified error handling
+    var lastAppError: AppError?
+    
+    func setError(_ error: Error, type: ErrorType = .connection) {
+        let appError = AppError.from(error)
+        lastAppError = appError
+        
+        switch type {
+        case .connection:
+            connectionError = appError.localizedDescription
+        case .send:
+            sendError = appError.localizedDescription
+        }
+    }
+    
+    func clearError() {
+        lastAppError = nil
+        connectionError = nil
+        sendError = nil
+    }
+    
+    enum ErrorType {
+        case connection
+        case send
+    }
 
     private let sessionStore = SessionStore()
     private let messageStore = MessageStore()
