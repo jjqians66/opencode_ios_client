@@ -110,6 +110,7 @@ iPhone 采用底部 Tab Bar，三个 Tab：
 - **左栏**：Workspace（文件树 + Sessions 列表）
 - **中栏**：Preview（文件内容、Markdown 预览，可手动刷新）
 - **右栏**：Chat（消息流、输入框、与 iPhone 一致）
+- **宽度比例**：Workspace ≈ 1/6；Preview ≈ 5/12；Chat ≈ 5/12（Preview 与 Chat 等宽）
 - **Settings**：作为独立按钮加入第一行 toolbar（与 Session 操作、模型切换并列），点击以 sheet 或 navigation push 打开
 - **优势**：大屏上 Chat 与 Preview 并排，文件预览无需弹窗；Workspace 与 Sessions 保持在左侧不干扰阅读
 

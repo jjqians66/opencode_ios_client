@@ -130,14 +130,23 @@ struct ContentView: View {
 
     /// iPad / Vision Pro：左右分栏，左 Files 右 Chat，Settings 为 toolbar 按钮
     private var splitLayout: some View {
-        NavigationSplitView {
-            SplitSidebarView(state: state)
-        } content: {
-            PreviewColumnView(state: state)
-        } detail: {
-            ChatTabView(state: state, showSettingsInToolbar: true, onSettingsTap: { showSettingsSheet = true })
+        GeometryReader { geo in
+            let total = geo.size.width
+            let sidebar = total / 6
+            let pane = (total - sidebar) / 2
+
+            NavigationSplitView {
+                SplitSidebarView(state: state)
+                    .navigationSplitViewColumnWidth(min: sidebar, ideal: sidebar, max: sidebar)
+            } content: {
+                PreviewColumnView(state: state)
+                    .navigationSplitViewColumnWidth(min: pane, ideal: pane, max: pane)
+            } detail: {
+                ChatTabView(state: state, showSettingsInToolbar: true, onSettingsTap: { showSettingsSheet = true })
+                    .navigationSplitViewColumnWidth(min: pane, ideal: pane, max: pane)
+            }
+            .navigationSplitViewStyle(.balanced)
         }
-        .navigationSplitViewStyle(.balanced)
     }
 }
 

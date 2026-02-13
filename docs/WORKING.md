@@ -35,6 +35,7 @@
 - [x] Phase 3：Think Streaming delta
 - [x] Phase 3：iPad / Vision Pro 布局：`horizontalSizeClass == .regular` 时左右分栏（左 Files、右 Chat），Settings 为 toolbar 按钮
 - [x] iPad / Vision Pro 布局升级：三栏（NavigationSplitView）— 左 Workspace（Files+Sessions）/ 中 Preview / 右 Chat
+- [x] iPad 三栏列宽比例：Workspace ≈ 1/6；Preview ≈ 5/12；Chat ≈ 5/12
 - [x] iPad 文件预览内联：左侧选择文件或 Chat tool/patch 点击文件时，更新中间 Preview（不再弹 sheet）
 - [x] iPad Preview 刷新按钮：中间栏右上角提供手动刷新（重新加载文件内容）
 - [x] 测试覆盖：SSE 事件结构、session 过滤、PathNormalizer、路径规范化
