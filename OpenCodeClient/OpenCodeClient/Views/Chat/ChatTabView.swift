@@ -109,30 +109,11 @@ struct ChatTabView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
-                            if useGridCards {
-                                LazyVGrid(
-                                    columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
-                                    alignment: .leading,
-                                    spacing: 10
-                                ) {
-                                     ForEach(currentPermissions) { perm in
-                                        PermissionCardView(permission: perm) { response in
-                                            Task { await state.respondPermission(perm, response: response) }
-                                        }
-                                     }
-                                 }
-                             } else {
-                                 ForEach(currentPermissions) { perm in
-                                    PermissionCardView(permission: perm) { response in
-                                        Task { await state.respondPermission(perm, response: response) }
-                                    }
-                                 }
-                             }
-                        if messageGroups.isEmpty {
-                            emptySessionStateView
-                        } else {
-                            ForEach(messageGroups) { group in
-                                switch group {
+                            if messageGroups.isEmpty {
+                                emptySessionStateView
+                            } else {
+                                ForEach(messageGroups) { group in
+                                    switch group {
                                 case .user(let msg):
                                     MessageRowView(message: msg, state: state, streamingPart: nil)
                                 case .assistantMerged(let msgs):
@@ -152,6 +133,28 @@ struct ChatTabView: View {
                         if let streamingPart = state.streamingReasoningPart {
                             StreamingReasoningView(part: streamingPart, state: state)
                                 .padding(.top, 6)
+                        }
+
+                        // Permissions should be at the bottom so auto-scroll makes them visible.
+                        // Keep them above the activity row.
+                        if useGridCards {
+                            LazyVGrid(
+                                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                                alignment: .leading,
+                                spacing: 10
+                            ) {
+                                ForEach(currentPermissions) { perm in
+                                    PermissionCardView(permission: perm) { response in
+                                        Task { await state.respondPermission(perm, response: response) }
+                                    }
+                                }
+                            }
+                        } else {
+                            ForEach(currentPermissions) { perm in
+                                PermissionCardView(permission: perm) { response in
+                                    Task { await state.respondPermission(perm, response: response) }
+                                }
+                            }
                         }
 
                         if let activity = currentActivity, shouldRenderActivityAtEnd {
