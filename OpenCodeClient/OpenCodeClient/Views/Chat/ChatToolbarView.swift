@@ -56,16 +56,6 @@ struct ChatToolbarView: View {
             }
             
             Button {
-                Task { await state.summarizeSession() }
-            } label: {
-                Image(systemName: "rectangle.compress.vertical")
-                    .font(.title3)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundColor(.accentColor)
-            }
-            .help("Compact session（压缩历史，避免 token 超限）")
-            
-            Button {
                 Task {
                     await state.createSession()
                 }

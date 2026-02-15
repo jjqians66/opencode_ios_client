@@ -860,17 +860,6 @@ final class AppState {
         }
     }
 
-    func summarizeSession() async {
-        guard let sessionID = currentSessionID else { return }
-        do {
-            try await apiClient.summarize(sessionID: sessionID)
-            await loadMessages()
-            await refreshSessions()
-        } catch {
-            connectionError = error.localizedDescription
-        }
-    }
-
     func updateSessionTitle(sessionID: String, title: String) async {
         do {
             _ = try await apiClient.updateSession(sessionID: sessionID, title: title)

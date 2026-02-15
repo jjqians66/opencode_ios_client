@@ -289,13 +289,6 @@ actor APIClient {
         return try JSONDecoder().decode(ProvidersResponse.self, from: data)
     }
 
-    func summarize(sessionID: String) async throws {
-        let (_, response) = try await makeRequest(path: "/session/\(sessionID)/summarize", method: "POST")
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw APIError.httpError(statusCode: http.statusCode, data: Data())
-        }
-    }
-
     func sessionDiff(sessionID: String) async throws -> [FileDiff] {
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)/diff")
         return try JSONDecoder().decode([FileDiff].self, from: data)
