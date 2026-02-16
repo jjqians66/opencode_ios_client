@@ -182,26 +182,30 @@ struct SettingsTabView: View {
 
                     }
 
-                    Button {
-                        do {
-                            let key = try state.sshTunnelManager.generateOrGetPublicKey()
-                            UIPasteboard.general.string = key
-                            copiedPublicKey = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    HStack(spacing: 12) {
+                        Button {
+                            do {
+                                let key = try state.sshTunnelManager.generateOrGetPublicKey()
+                                UIPasteboard.general.string = key
+                                copiedPublicKey = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                    copiedPublicKey = false
+                                }
+                            } catch {
                                 copiedPublicKey = false
                             }
-                        } catch {
-                            copiedPublicKey = false
+                        } label: {
+                            Label(copiedPublicKey ? L10n.t(.settingsPublicKeyCopied) : L10n.t(.settingsCopyPublicKey), systemImage: copiedPublicKey ? "checkmark" : "doc.on.doc")
                         }
-                    } label: {
-                        Label(copiedPublicKey ? L10n.t(.settingsPublicKeyCopied) : L10n.t(.settingsCopyPublicKey), systemImage: copiedPublicKey ? "checkmark" : "doc.on.doc")
-                    }
-                    .buttonStyle(.plain)
+                        .buttonStyle(.bordered)
 
-                    Button(L10n.t(.settingsViewPublicKey)) {
-                        loadPublicKeyForSheet()
+                        Button(L10n.t(.settingsViewPublicKey)) {
+                            loadPublicKeyForSheet()
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
 
                     if let command = state.sshTunnelManager.reverseTunnelCommand {
                         VStack(alignment: .leading, spacing: 6) {
@@ -347,14 +351,12 @@ struct SettingsTabView: View {
     }
 
     private func loadPublicKeyForSheet() {
-        if let existing = state.sshTunnelManager.getPublicKey(), !existing.isEmpty {
-            publicKeyForSheet = existing
-            showPublicKeySheet = true
-            return
-        }
-
         do {
-            publicKeyForSheet = try state.sshTunnelManager.generateOrGetPublicKey()
+            let key = try state.sshTunnelManager.generateOrGetPublicKey().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else {
+                throw SSHError.keyNotFound
+            }
+            publicKeyForSheet = key
             showPublicKeySheet = true
         } catch {
             publicKeyForSheet = ""

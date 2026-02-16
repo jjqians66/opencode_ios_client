@@ -46,6 +46,7 @@
 - [x] **Busy 卡死/Abort 无效感修复**：poll 合并时对“缺失于 poll 结果但本地仍 busy/retry”的会话降级为 idle，并同步清理 streaming；abort 后立即补拉状态+消息
 - [x] **Todo 渲染兼容性修复（OpenCode 升级）**：兼容 `TodoItem` 新旧字段（`status/priority/id` 与 legacy `completed`），并修复 tool state `metadata.todos`/`output(JSON)` 解析；`metadata.input` 非字符串时不再导致 todo 卡片空白
 - [x] **SSH runtime crash 防护（NIO channel state）**：修复 `SSHTunnelManager` 中跨线程调用 channel/context close 的并发问题（统一切回 NIO eventLoop 执行），避免 `Sent channel window adjust on channel in invalid state` 触发 fatal
+- [x] **SSH Public Key 交互补强（二次）**：`View Public Key` 改为始终走 `generateOrGetPublicKey()`（不再优先读可能为空的缓存值），并将 `Copy Public Key` + `View Public Key` 合并为同一行按钮，减少 Settings 区域占用
 
 ## 已完成
 
@@ -177,6 +178,8 @@
 8. **SSH runtime fatal（NIO channel state）**：在 Settings 页滚动等场景偶发 `Sent channel window adjust on channel in invalid state`。定位为 `SSHTunnelManager` 中从 NW 回调线程直接调用 NIO `channel.close/context.close`，导致状态机竞态；修复为统一通过 `eventLoop.execute` 调度关闭。
 
 9. **Simulator SpringBoard 崩溃（非 App 进程）**：最新崩溃日志显示 `Process: SpringBoard`，线程 `com.apple.xpc.activity.com.apple.SplashBoard` 触发 `dispatch_assert_queue`，属于模拟器系统组件异常，不是 `OpenCodeClient` 进程崩溃。结论：与当前业务代码改动无直接因果；排查优先使用“重启/抹除 simulator + 重新安装 app”路径。
+
+10. **View Public Key 部分场景仍空白**：在 SSH enabled 但连接失败时，旧逻辑会先读本地缓存公钥，存在命中空字符串导致 sheet 为空的风险。修复：打开 sheet 时统一通过 `generateOrGetPublicKey()` 获取并做 trim + empty guard，异常时走错误弹窗。
 
 ## 决策记录
 
