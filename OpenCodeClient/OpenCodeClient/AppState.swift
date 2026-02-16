@@ -495,9 +495,7 @@ final class AppState {
     func refreshSessions() async {
         guard isConnected else { return }
         await loadSessions()
-        if let statuses = try? await apiClient.sessionStatus() {
-            mergePolledSessionStatuses(statuses)
-        }
+        await syncSessionStatusesFromPoll()
     }
 
     func selectSession(_ session: Session) {
@@ -856,8 +854,15 @@ final class AppState {
         let start = Date()
         await loadMessages()
         await refreshPendingPermissions()
+        await syncSessionStatusesFromPoll()
         let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
         Self.logger.debug("bootstrapSync reason=\(reason, privacy: .public) elapsedMs=\(elapsedMs, privacy: .public) messages=\(self.messages.count, privacy: .public) permissions=\(self.pendingPermissions.count, privacy: .public)")
+    }
+
+    private func syncSessionStatusesFromPoll(markMissingBusyAsIdle: Bool = true) async {
+        guard isConnected else { return }
+        guard let statuses = try? await apiClient.sessionStatus() else { return }
+        mergePolledSessionStatuses(statuses, markMissingBusyAsIdle: markMissingBusyAsIdle)
     }
 
     func abortSession() async {
@@ -867,6 +872,10 @@ final class AppState {
         } catch {
             connectionError = error.localizedDescription
         }
+
+        await syncSessionStatusesFromPoll(markMissingBusyAsIdle: true)
+        await loadMessages()
+        await loadSessionDiff()
     }
 
     func updateSessionTitle(sessionID: String, title: String) async {
@@ -958,6 +967,8 @@ final class AppState {
         let props = event.payload.properties ?? [:]
 
         switch type {
+        case "server.connected":
+            await syncSessionStatusesFromPoll(markMissingBusyAsIdle: true)
         case "session.status":
             if let sessionID = props["sessionID"]?.value as? String,
                 let statusObj = props["status"]?.value as? [String: Any] {
@@ -1086,6 +1097,13 @@ final class AppState {
     }
 
     private func mergePolledSessionStatuses(_ statuses: [String: SessionStatus]) {
+        mergePolledSessionStatuses(statuses, markMissingBusyAsIdle: true)
+    }
+
+    private func mergePolledSessionStatuses(
+        _ statuses: [String: SessionStatus],
+        markMissingBusyAsIdle: Bool
+    ) {
         let now = Date()
         for (sid, st) in statuses {
             if let updatedAt = sessionStatusUpdatedAt[sid], now.timeIntervalSince(updatedAt) < 5 {
@@ -1093,11 +1111,41 @@ final class AppState {
             }
             let prev = sessionStatuses[sid]
             sessionStatuses[sid] = st
+            updateSessionActivity(sessionID: sid, previous: prev, current: st)
+            if sid == currentSessionID, !isBusySession(st) {
+                streamingReasoningPart = nil
+                streamingPartTexts = [:]
+                streamingDraftMessageIDs.removeAll()
+            }
             if prev?.type != st.type {
                 Self.logger.debug(
                     "session.status(poll) session=\(sid, privacy: .public) prev=\(prev?.type ?? "nil", privacy: .public) next=\(st.type, privacy: .public)"
                 )
             }
+        }
+
+        guard markMissingBusyAsIdle else { return }
+
+        let existingSnapshot = sessionStatuses
+        for (sid, prev) in existingSnapshot {
+            guard statuses[sid] == nil else { continue }
+            guard prev.type == "busy" || prev.type == "retry" else { continue }
+            if let updatedAt = sessionStatusUpdatedAt[sid], now.timeIntervalSince(updatedAt) < 5 {
+                continue
+            }
+
+            let idle = SessionStatus(type: "idle", attempt: nil, message: nil, next: nil)
+            sessionStatuses[sid] = idle
+            updateSessionActivity(sessionID: sid, previous: prev, current: idle)
+            if sid == currentSessionID {
+                streamingReasoningPart = nil
+                streamingPartTexts = [:]
+                streamingDraftMessageIDs.removeAll()
+            }
+
+            Self.logger.debug(
+                "session.status(poll) session=\(sid, privacy: .public) prev=\(prev.type, privacy: .public) next=idle (missing from poll)"
+            )
         }
     }
 
@@ -1228,9 +1276,7 @@ final class AppState {
             await loadSessionTodos()
             await loadFileTree()
             await loadFileStatus()
-            if let statuses = try? await apiClient.sessionStatus() {
-                mergePolledSessionStatuses(statuses)
-            }
+            await syncSessionStatusesFromPoll()
         }
     }
 

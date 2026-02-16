@@ -41,6 +41,9 @@
 - [x] **SSH UX 修复**：默认 Server Address 改为 `127.0.0.1:4096`；开启 SSH 后配置变更自动重连；View Public Key 在 enabled 场景不再空白；`Set Server Address` CTA 改为显式蓝色按钮
 - [x] **Settings 关闭按钮一致性**：sheet 右上角改为英文 `Close`，避免英文界面出现中文“关闭”
 - [x] **Localization 规划**：新增 `docs/dev_localization.md`，给出 en/zh-Hans 双语落地路线与分批迁移计划
+- [x] **SSH 前后台自动恢复修复**：进入后台时主动断开 SSH/SSE；回前台恢复时若健康检查失败，强制重建一次 SSH tunnel 再 refresh
+- [x] **SSE 重连状态补偿**：SSE bootstrap 与 `server.connected` 事件时补拉 `/session/status`，避免仅补消息不补状态
+- [x] **Busy 卡死/Abort 无效感修复**：poll 合并时对“缺失于 poll 结果但本地仍 busy/retry”的会话降级为 idle，并同步清理 streaming；abort 后立即补拉状态+消息
 
 ## 已完成
 
