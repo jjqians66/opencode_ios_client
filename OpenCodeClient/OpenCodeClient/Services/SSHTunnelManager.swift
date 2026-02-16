@@ -315,7 +315,9 @@ final class SSHTunnelManager: ObservableObject {
             }
 
             if isComplete || error != nil {
-                channel.close(promise: nil)
+                channel.eventLoop.execute {
+                    channel.close(promise: nil)
+                }
                 conn.cancel()
                 return
             }
@@ -380,7 +382,9 @@ private final class NIOToNWConnectionHandler: ChannelInboundHandler {
                 #if DEBUG
                 print("[SSH Tunnel] send failed: \(error)")
                 #endif
-                context.close(promise: nil)
+                context.eventLoop.execute {
+                    context.close(promise: nil)
+                }
             }
         })
     }

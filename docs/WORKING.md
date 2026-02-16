@@ -45,6 +45,7 @@
 - [x] **SSE 重连状态补偿**：SSE bootstrap 与 `server.connected` 事件时补拉 `/session/status`，避免仅补消息不补状态
 - [x] **Busy 卡死/Abort 无效感修复**：poll 合并时对“缺失于 poll 结果但本地仍 busy/retry”的会话降级为 idle，并同步清理 streaming；abort 后立即补拉状态+消息
 - [x] **Todo 渲染兼容性修复（OpenCode 升级）**：兼容 `TodoItem` 新旧字段（`status/priority/id` 与 legacy `completed`），并修复 tool state `metadata.todos`/`output(JSON)` 解析；`metadata.input` 非字符串时不再导致 todo 卡片空白
+- [x] **SSH runtime crash 防护（NIO channel state）**：修复 `SSHTunnelManager` 中跨线程调用 channel/context close 的并发问题（统一切回 NIO eventLoop 执行），避免 `Sent channel window adjust on channel in invalid state` 触发 fatal
 
 ## 已完成
 
@@ -172,6 +173,8 @@
 6. **术语澄清**：Think streaming 实指 Think（ReasoningPartView）的展开/收起行为，非 Tool。
 
 7. **轮询时 messages 解析噪声**：busy/retry 期间偶发 `The data couldn’t be read because it is missing`（空 body / payload 形态不稳定）。修复：APIClient 增加空 body guard + 多形态解码兜底；AppState 捕获 DecodingError 仅记录日志，避免把 polling 当作连接失败。
+
+8. **SSH runtime fatal（NIO channel state）**：在 Settings 页滚动等场景偶发 `Sent channel window adjust on channel in invalid state`。定位为 `SSHTunnelManager` 中从 NW 回调线程直接调用 NIO `channel.close/context.close`，导致状态机竞态；修复为统一通过 `eventLoop.execute` 调度关闭。
 
 ## 决策记录
 
