@@ -66,13 +66,32 @@ struct MessageRowView: View {
 
     @ViewBuilder
     private func markdownText(_ text: String) -> some View {
-        if !text.isEmpty {
+        if shouldRenderMarkdown(text) {
             Markdown(text)
                 .textSelection(.enabled)
         } else {
             Text(text)
                 .textSelection(.enabled)
         }
+    }
+
+    private func shouldRenderMarkdown(_ text: String) -> Bool {
+        Self.hasMarkdownSyntax(text)
+    }
+
+    static func hasMarkdownSyntax(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let markdownSignals = [
+            "```", "`", "**", "__", "#", "- ", "* ", "+ ", "1. ",
+            "[", "](", "> ", "|", "~~"
+        ]
+        if markdownSignals.contains(where: { trimmed.contains($0) }) {
+            return true
+        }
+
+        return trimmed.contains("\n\n")
     }
 
     var body: some View {
