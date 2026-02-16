@@ -7,9 +7,10 @@ import SwiftUI
 
 struct PatchPartView: View {
     let part: Part
-    @Bindable var state: AppState
+    let workspaceDirectory: String?
+    let onOpenResolvedPath: (String) -> Void
+    let onOpenFilesTab: () -> Void
     @State private var showOpenFileSheet = false
-    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         let fileCount = part.files?.count ?? 0
@@ -21,7 +22,7 @@ struct PatchPartView: View {
             } else if paths.count > 1 {
                 showOpenFileSheet = true
             } else {
-                state.selectedTab = 1
+                onOpenFilesTab()
             }
         } label: {
             HStack(spacing: 8) {
@@ -60,14 +61,8 @@ struct PatchPartView: View {
 
     private func openFile(_ path: String) {
         let raw = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        let p = PathNormalizer.resolveWorkspaceRelativePath(raw, workspaceDirectory: state.currentSession?.directory)
+        let p = PathNormalizer.resolveWorkspaceRelativePath(raw, workspaceDirectory: workspaceDirectory)
         guard !p.isEmpty else { return }
-        if sizeClass == .regular {
-            state.previewFilePath = p
-            state.fileToOpenInFilesTab = nil
-        } else {
-            state.fileToOpenInFilesTab = p
-            state.selectedTab = 1
-        }
+        onOpenResolvedPath(p)
     }
 }

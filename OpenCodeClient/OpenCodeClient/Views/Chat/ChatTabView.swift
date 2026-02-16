@@ -267,13 +267,21 @@ struct ChatTabView: View {
                                     case .group(let group):
                                         switch group {
                                         case .user(let msg):
-                                            MessageRowView(message: msg, state: state, streamingPart: nil)
+                                            MessageRowView(
+                                                message: msg,
+                                                sessionTodos: state.sessionTodos[msg.info.sessionID] ?? [],
+                                                workspaceDirectory: state.currentSession?.directory,
+                                                onOpenResolvedPath: openFileInChat,
+                                                onOpenFilesTab: openFilesTab
+                                            )
                                         case .assistantMerged(let msgs):
                                             let merged = MessageWithParts(info: msgs.first!.info, parts: msgs.flatMap(\.parts))
                                             MessageRowView(
                                                 message: merged,
-                                                state: state,
-                                                streamingPart: nil
+                                                sessionTodos: state.sessionTodos[merged.info.sessionID] ?? [],
+                                                workspaceDirectory: state.currentSession?.directory,
+                                                onOpenResolvedPath: openFileInChat,
+                                                onOpenFilesTab: openFilesTab
                                             )
                                         }
                                     case .activity(let a):
@@ -578,6 +586,21 @@ struct ChatTabView: View {
         case "retry": return L10n.t(.chatSessionStatusRetrying)
         default: return L10n.t(.chatSessionStatusIdle)
         }
+    }
+
+    private func openFileInChat(_ resolvedPath: String) {
+        guard !resolvedPath.isEmpty else { return }
+        if sizeClass == .regular {
+            state.previewFilePath = resolvedPath
+            state.fileToOpenInFilesTab = nil
+        } else {
+            state.fileToOpenInFilesTab = resolvedPath
+            state.selectedTab = 1
+        }
+    }
+
+    private func openFilesTab() {
+        state.selectedTab = 1
     }
 }
 

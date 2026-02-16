@@ -4,13 +4,14 @@
 
 ## 当前状态
 
-- **最后更新**：2026-02-15
+- **最后更新**：2026-02-16
 - **Phase**：Phase 3 完成 + SSH Tunnel 基础设施
 - **编译**：✅ 通过（iphonesimulator / generic destination）
 - **测试**：✅ 所有测试通过（含 SSH tunnel 相关测试）
 
 ## 进行中
 
+- [x] **渲染性能优化 1/3（行级去全局状态订阅）**：`MessageRowView/ToolPartView/PatchPartView` 移除 `@Bindable AppState` 直连，改为最小必要数据 + 文件打开回调，降低长会话下无关状态变更触发的整页重算
 - [x] **SSH Tunnel 远程访问**（Citadel 集成完成）：
   - [x] SSHKeyManager：Ed25519 密钥生成/存储（Keychain）/公钥显示
   - [x] SSHTunnelManager：连接/断开/状态

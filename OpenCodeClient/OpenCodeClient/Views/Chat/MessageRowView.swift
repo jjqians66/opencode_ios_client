@@ -8,8 +8,10 @@ import MarkdownUI
 
 struct MessageRowView: View {
     let message: MessageWithParts
-    @Bindable var state: AppState
-    var streamingPart: Part? = nil
+    let sessionTodos: [TodoItem]
+    let workspaceDirectory: String?
+    let onOpenResolvedPath: (String) -> Void
+    let onOpenFilesTab: () -> Void
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var cardGridColumnCount: Int { sizeClass == .regular ? 3 : 2 }
@@ -145,18 +147,25 @@ struct MessageRowView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .textSelection(.enabled)
             }
-            if let streamingPart {
-                StreamingReasoningView(part: streamingPart, state: state)
-            }
         }
     }
 
     @ViewBuilder
     private func cardView(_ part: Part) -> some View {
         if part.isTool {
-            ToolPartView(part: part, state: state)
+            ToolPartView(
+                part: part,
+                sessionTodos: sessionTodos,
+                workspaceDirectory: workspaceDirectory,
+                onOpenResolvedPath: onOpenResolvedPath
+            )
         } else if part.isPatch {
-            PatchPartView(part: part, state: state)
+            PatchPartView(
+                part: part,
+                workspaceDirectory: workspaceDirectory,
+                onOpenResolvedPath: onOpenResolvedPath,
+                onOpenFilesTab: onOpenFilesTab
+            )
         } else {
             EmptyView()
         }

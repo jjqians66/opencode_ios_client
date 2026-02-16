@@ -7,14 +7,22 @@ import SwiftUI
 
 struct ToolPartView: View {
     let part: Part
-    @Bindable var state: AppState
+    let sessionTodos: [TodoItem]
+    let workspaceDirectory: String?
+    let onOpenResolvedPath: (String) -> Void
     @State private var isExpanded: Bool
     @State private var showOpenFileSheet = false
-    @Environment(\.horizontalSizeClass) private var sizeClass
 
-    init(part: Part, state: AppState) {
+    init(
+        part: Part,
+        sessionTodos: [TodoItem],
+        workspaceDirectory: String?,
+        onOpenResolvedPath: @escaping (String) -> Void
+    ) {
         self.part = part
-        self.state = state
+        self.sessionTodos = sessionTodos
+        self.workspaceDirectory = workspaceDirectory
+        self.onOpenResolvedPath = onOpenResolvedPath
         self._isExpanded = State(initialValue: part.stateDisplay?.lowercased() == "running")
     }
 
@@ -48,7 +56,7 @@ struct ToolPartView: View {
                 }
 
                 if part.tool == "todowrite" {
-                    let todos = part.toolTodos.isEmpty ? (state.sessionTodos[part.sessionID] ?? []) : part.toolTodos
+                    let todos = part.toolTodos.isEmpty ? sessionTodos : part.toolTodos
                     if !todos.isEmpty {
                         TodoListInlineView(todos: todos)
                     }
@@ -170,14 +178,8 @@ struct ToolPartView: View {
 
     private func openFile(_ path: String) {
         let raw = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        let p = PathNormalizer.resolveWorkspaceRelativePath(raw, workspaceDirectory: state.currentSession?.directory)
+        let p = PathNormalizer.resolveWorkspaceRelativePath(raw, workspaceDirectory: workspaceDirectory)
         guard !p.isEmpty else { return }
-        if sizeClass == .regular {
-            state.previewFilePath = p
-            state.fileToOpenInFilesTab = nil
-        } else {
-            state.fileToOpenInFilesTab = p
-            state.selectedTab = 1
-        }
+        onOpenResolvedPath(p)
     }
 }
