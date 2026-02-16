@@ -779,6 +779,21 @@ struct APIConstantsTests {
     }
 }
 
+struct MessageRenderingHeuristicTests {
+
+    @Test func markdownHeuristicDetectsPlainText() {
+        #expect(MessageRowView.hasMarkdownSyntax("this is a plain sentence") == false)
+    }
+
+    @Test func markdownHeuristicDetectsHeader() {
+        #expect(MessageRowView.hasMarkdownSyntax("# Title") == true)
+    }
+
+    @Test func markdownHeuristicDetectsCodeFence() {
+        #expect(MessageRowView.hasMarkdownSyntax("```swift\nprint(1)\n```") == true)
+    }
+}
+
 // MARK: - SSH Tunnel Tests
 
 struct SSHTunnelTests {
