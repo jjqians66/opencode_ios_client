@@ -87,12 +87,6 @@ struct SessionRowView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        if let summary = session.summary {
-                            Text(L10n.sessionsFiles(summary.files))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
                         if let status {
                             Text(statusLabel(status))
                                 .font(.caption)
