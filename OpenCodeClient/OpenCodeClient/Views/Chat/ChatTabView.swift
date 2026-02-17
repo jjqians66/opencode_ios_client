@@ -182,7 +182,9 @@ struct ChatTabView: View {
     private var chatItems: [ChatItem] {
         // Completed activity rows interleaved after each assistant turn.
         let activities = turnActivitiesForCurrentSession(.completedOnly)
-        let activityByUserID = Dictionary(uniqueKeysWithValues: activities.map { ($0.id, $0) })
+        let activityByUserID: [String: TurnActivity] = activities.reduce(into: [:]) { result, activity in
+            result[activity.id] = activity
+        }
 
         var items: [ChatItem] = []
         var currentUserID: String? = nil
@@ -297,14 +299,16 @@ struct ChatTabView: View {
                                                 onOpenFilesTab: openFilesTab
                                             )
                                         case .assistantMerged(let msgs):
-                                            let merged = MessageWithParts(info: msgs.first!.info, parts: msgs.flatMap(\.parts))
-                                            MessageRowView(
-                                                message: merged,
-                                                sessionTodos: state.sessionTodos[merged.info.sessionID] ?? [],
-                                                workspaceDirectory: state.currentSession?.directory,
-                                                onOpenResolvedPath: openFileInChat,
-                                                onOpenFilesTab: openFilesTab
-                                            )
+                                            if let first = msgs.first {
+                                                let merged = MessageWithParts(info: first.info, parts: msgs.flatMap(\.parts))
+                                                MessageRowView(
+                                                    message: merged,
+                                                    sessionTodos: state.sessionTodos[merged.info.sessionID] ?? [],
+                                                    workspaceDirectory: state.currentSession?.directory,
+                                                    onOpenResolvedPath: openFileInChat,
+                                                    onOpenFilesTab: openFilesTab
+                                                )
+                                            }
                                         }
                                     case .activity(let a):
                                         TurnActivityRowView(activity: a)
