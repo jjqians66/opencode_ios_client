@@ -10,9 +10,17 @@ struct FileContentView: View {
     @Bindable var state: AppState
     let filePath: String
     @State private var content: String?
+    @State private var imageData: Data?
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var showPreview = true
+
+    private static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "heic", "heif", "ico"]
+
+    private var isImage: Bool {
+        let ext = filePath.lowercased().split(separator: ".").last.map(String.init) ?? ""
+        return Self.imageExtensions.contains(ext)
+    }
 
     private var isMarkdown: Bool {
         filePath.lowercased().hasSuffix(".md") || filePath.lowercased().hasSuffix(".markdown")
@@ -27,6 +35,16 @@ struct FileContentView: View {
         if let content {
             ToolbarItem(placement: .primaryAction) {
                 ShareLink(item: content, subject: Text(fileName)) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+        }
+        if let imageData, let uiImage = UIImage(data: imageData) {
+            ToolbarItem(placement: .primaryAction) {
+                ShareLink(
+                    item: Image(uiImage: uiImage),
+                    preview: SharePreview(fileName, image: Image(uiImage: uiImage))
+                ) {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
@@ -47,6 +65,8 @@ struct FileContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let err = loadError {
                 ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(err))
+            } else if let data = imageData, let uiImage = UIImage(data: data) {
+                ImageView(uiImage: uiImage)
             } else if let text = content {
                 contentView(text: text)
             } else {
@@ -80,15 +100,26 @@ struct FileContentView: View {
     private func loadContent() {
         isLoading = true
         loadError = nil
+        imageData = nil
+        content = nil
         Task {
             do {
                 let fc = try await state.loadFileContent(path: filePath)
                 await MainActor.run {
-                    content = fc.text ?? fc.content
-                    isLoading = false
-                    if content == nil && fc.type == "binary" {
-                        loadError = "Binary file"
+                    if let text = fc.text {
+                        content = text
+                    } else if let base64 = fc.content, fc.type == "binary" {
+                        if isImage {
+                            if let data = Data(base64Encoded: base64) {
+                                imageData = data
+                            } else {
+                                loadError = "Failed to decode image data"
+                            }
+                        } else {
+                            loadError = "Binary file"
+                        }
                     }
+                    isLoading = false
                 }
             } catch {
                 await MainActor.run {
@@ -160,6 +191,62 @@ struct RawTextView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
+        }
+    }
+}
+
+/// Image view with zoom support
+struct ImageView: View {
+    let uiImage: UIImage
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical]) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .gesture(
+                        SimultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    let newScale = lastScale * value
+                                    scale = min(max(newScale, 0.5), 5.0)
+                                }
+                                .onEnded { _ in
+                                    lastScale = scale
+                                },
+                            DragGesture()
+                                .onChanged { value in
+                                    offset = CGSize(
+                                        width: lastOffset.width + value.translation.width,
+                                        height: lastOffset.height + value.translation.height
+                                    )
+                                }
+                                .onEnded { _ in
+                                    lastOffset = offset
+                                }
+                        )
+                    )
+                    .frame(
+                        width: max(uiImage.size.width * scale, geometry.size.width),
+                        height: max(uiImage.size.height * scale, geometry.size.height)
+                    )
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation { scale = 1.0; lastScale = 1.0; offset = .zero; lastOffset = .zero }
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                }
+            }
         }
     }
 }

@@ -358,8 +358,12 @@ struct ChatTabView: View {
                     }
                     .scrollDismissesKeyboard(.immediately)
                     .onChange(of: scrollAnchor) { _, _ in
-                        withAnimation(.easeOut(duration: 0.2)) {
+                        if state.isBusy {
                             proxy.scrollTo("bottom", anchor: .bottom)
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
                         }
                     }
                 }
