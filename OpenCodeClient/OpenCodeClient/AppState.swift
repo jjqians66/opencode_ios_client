@@ -661,8 +661,25 @@ final class AppState {
                 merged.append(message)
             }
 
-            messages = merged
-            partsByMessage = Dictionary(uniqueKeysWithValues: messages.map { ($0.info.id, $0.parts) })
+            // Defensively dedupe by message id. Keep the latest occurrence.
+            var dedupedMessages: [MessageWithParts] = []
+            var dedupedIndexByMessageID: [String: Int] = [:]
+            for message in merged {
+                if let existingIndex = dedupedIndexByMessageID[message.info.id] {
+                    dedupedMessages[existingIndex] = message
+                } else {
+                    dedupedIndexByMessageID[message.info.id] = dedupedMessages.count
+                    dedupedMessages.append(message)
+                }
+            }
+
+            messages = dedupedMessages
+
+            var partsByMessageID: [String: [Part]] = [:]
+            for message in messages {
+                partsByMessageID[message.info.id] = message.parts
+            }
+            partsByMessage = partsByMessageID
             streamingDraftMessageIDs.subtract(loadedMessageIDs)
 
             if isBusySession(currentSessionStatus) {
@@ -717,10 +734,12 @@ final class AppState {
     func loadFileStatus() async {
         do {
             let entries = try await apiClient.fileStatus()
-            fileStatusMap = Dictionary(uniqueKeysWithValues: entries.compactMap { e in
-                guard let p = e.path else { return nil }
-                return (p, e.status ?? "")
-            })
+            var nextStatusMap: [String: String] = [:]
+            for entry in entries {
+                guard let path = entry.path else { continue }
+                nextStatusMap[path] = entry.status ?? ""
+            }
+            fileStatusMap = nextStatusMap
         } catch {
             fileStatusMap = [:]
         }
