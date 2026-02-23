@@ -3,6 +3,7 @@
 //  OpenCodeClient
 //
 
+import Foundation
 import SwiftUI
 
 struct SettingsTabView: View {
@@ -32,6 +33,10 @@ struct SettingsTabView: View {
 
                     SecureField(L10n.t(.settingsPassword), text: $state.password)
                         .textContentType(.password)
+
+                    TextField(L10n.t(.settingsPromptAgent), text: $state.promptAgent)
+                        .textContentType(.none)
+                        .autocapitalization(.none)
 
                     if let scheme = info.scheme {
                         let shouldWarnInsecureHTTP = scheme == "http" && !sshConfig.isEnabled
@@ -289,6 +294,37 @@ struct SettingsTabView: View {
                         }
                     }
                 }
+
+                Section("Performance Diagnostics") {
+                    let telemetry = state.streamingTelemetry
+
+                    LabeledContent("delta events (message.part.delta)", value: "\(telemetry.deltaEventsTotal)")
+                    LabeledContent("delta events (message.part.updated)", value: "\(telemetry.updatedDeltaEventsTotal)")
+                    LabeledContent("delta rate (last 10s)", value: String(format: "%.1f/s", telemetry.deltaRatePerSecond))
+                    LabeledContent("delta count (last 10s)", value: "\(telemetry.deltaEventsLast10s)")
+
+                    Divider()
+
+                    LabeledContent("refresh scheduled", value: "\(telemetry.fullRefreshScheduled)")
+                    LabeledContent("refresh executed", value: "\(telemetry.fullRefreshExecuted)")
+                    LabeledContent("refresh cancelled", value: "\(telemetry.fullRefreshCancelled)")
+                    LabeledContent("refresh last", value: "\(telemetry.fullRefreshLastMs) ms")
+                    LabeledContent("refresh avg", value: "\(telemetry.fullRefreshAverageMs) ms")
+                    LabeledContent("refresh max", value: "\(telemetry.fullRefreshMaxMs) ms")
+
+                    if let lastDeltaAt = telemetry.lastDeltaAt {
+                        LabeledContent("last delta", value: lastDeltaAt.formatted(date: .omitted, time: .standard))
+                    }
+                    if let lastRefreshAt = telemetry.lastRefreshAt {
+                        LabeledContent("last refresh", value: lastRefreshAt.formatted(date: .omitted, time: .standard))
+                    }
+
+                    Button("Reset Performance Counters") {
+                        state.resetStreamingTelemetry()
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Section(L10n.t(.settingsAbout)) {
                     if let version = state.serverVersion {
                         LabeledContent(L10n.t(.settingsServerVersion), value: version)

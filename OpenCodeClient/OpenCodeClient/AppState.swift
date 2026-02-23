@@ -51,7 +51,8 @@ final class AppState {
             return false
         }
 
-        let hasScheme = trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
+        let lowerTrimmed = trimmed.lowercased()
+        let hasScheme = lowerTrimmed.hasPrefix("http://") || lowerTrimmed.hasPrefix("https://")
         let host = parseHost(trimmed)
         let isLocal: Bool = {
             guard let host else { return true }
@@ -62,7 +63,9 @@ final class AppState {
         }()
 
         let scheme: String = {
-            if let u = URL(string: trimmed), let s = u.scheme { return s }
+            if hasScheme {
+                return lowerTrimmed.hasPrefix("https://") ? "https" : "http"
+            }
             return isLocal ? "http" : "https"
         }()
 
@@ -132,6 +135,7 @@ final class AppState {
     private static let aiBuilderLastOKTestedAtKey = "aiBuilderLastOKTestedAt"
     private static let draftInputsBySessionKey = "draftInputsBySession"
     private static let selectedModelBySessionKey = "selectedModelBySession"
+    private static let promptAgentKey = "promptAgent"
 
     init() {
         if let storedServer = UserDefaults.standard.string(forKey: Self.serverURLKey) {
@@ -147,10 +151,11 @@ final class AppState {
         _username = UserDefaults.standard.string(forKey: Self.usernameKey) ?? ""
         _password = KeychainHelper.load(forKey: Self.passwordKeychainKey) ?? ""
 
-        _aiBuilderBaseURL = UserDefaults.standard.string(forKey: Self.aiBuilderBaseURLKey) ?? "https://space.ai-builders.com/backend"
+        _aiBuilderBaseURL = UserDefaults.standard.string(forKey: Self.aiBuilderBaseURLKey) ?? ""
         _aiBuilderToken = KeychainHelper.load(forKey: Self.aiBuilderTokenKeychainKey) ?? ""
         _aiBuilderCustomPrompt = UserDefaults.standard.string(forKey: Self.aiBuilderCustomPromptKey) ?? Self.defaultAIBuilderCustomPrompt
         _aiBuilderTerminology = UserDefaults.standard.string(forKey: Self.aiBuilderTerminologyKey) ?? Self.defaultAIBuilderTerminology
+        _promptAgent = UserDefaults.standard.string(forKey: Self.promptAgentKey) ?? "build"
 
         // Restore last known-good AI Builder connection state if token/baseURL unchanged.
         let storedSig = UserDefaults.standard.string(forKey: Self.aiBuilderLastOKSignatureKey)
@@ -221,7 +226,7 @@ final class AppState {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    private var _aiBuilderBaseURL: String = "https://space.ai-builders.com/backend"
+    private var _aiBuilderBaseURL: String = ""
     var aiBuilderBaseURL: String {
         get { _aiBuilderBaseURL }
         set {
@@ -274,6 +279,16 @@ final class AppState {
         set {
             _aiBuilderTerminology = newValue
             UserDefaults.standard.set(newValue, forKey: Self.aiBuilderTerminologyKey)
+        }
+    }
+
+    private var _promptAgent: String = "build"
+    var promptAgent: String {
+        get { _promptAgent }
+        set {
+            let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            _promptAgent = normalized.isEmpty ? "build" : normalized
+            UserDefaults.standard.set(_promptAgent, forKey: Self.promptAgentKey)
         }
     }
 
@@ -352,13 +367,16 @@ final class AppState {
     var partsByMessage: [String: [Part]] { get { messageStore.partsByMessage } set { messageStore.partsByMessage = newValue } }
     var streamingPartTexts: [String: String] { get { messageStore.streamingPartTexts } set { messageStore.streamingPartTexts = newValue } }
 
-    /// 固定四个模型，不再从 server 导入
-    var modelPresets: [ModelPreset] = [
+    private static let fallbackModelPresets: [ModelPreset] = [
         ModelPreset(displayName: "GPT-5.3 Codex", providerID: "openai", modelID: "gpt-5.3-codex"),
         ModelPreset(displayName: "GPT-5.3 Codex Spark", providerID: "openai", modelID: "gpt-5.3-codex-spark"),
         ModelPreset(displayName: "Opus 4.6", providerID: "poe", modelID: "anthropic/claude-opus-4-6"),
         ModelPreset(displayName: "GLM5", providerID: "zai-coding-plan", modelID: "glm-5"),
     ]
+
+    /// Toolbar keeps a small model set for mobile ergonomics; source is server-driven first.
+    private static let maxToolbarModelPresets = 4
+    var modelPresets: [ModelPreset] = AppState.fallbackModelPresets
     var selectedModelIndex: Int = 0
 
     var pendingPermissions: [PendingPermission] = []
@@ -391,13 +409,17 @@ final class AppState {
     private let sseClient = SSEClient()
     let sshTunnelManager = SSHTunnelManager()
     private var sseTask: Task<Void, Never>?
+    private var scheduledMessageRefreshTask: Task<Void, Never>?
+    private var scheduledMessageRefreshID = UUID()
+    private var hasPendingScheduledMessageRefresh = false
+    private var streamingDeltaEventTimes: [Date] = []
 
     /// Guard against race conditions when rapidly switching sessions.
     /// Each selectSession call generates a new ID; async tasks check if they're still current.
     private var sessionLoadingID = UUID()
 
     // WAN optimization: page message history in fixed-size message batches.
-    static let messagePageSize = 20
+    nonisolated static let messagePageSize = 20
     private var loadedMessageLimitBySessionID: [String: Int] = [:]
     private var hasMoreHistoryBySessionID: [String: Bool] = [:]
     private var loadingOlderMessagesSessionIDs: Set<String> = []
@@ -405,6 +427,7 @@ final class AppState {
     /// Latest streaming reasoning part (for typewriter thinking display)
     var streamingReasoningPart: Part? = nil
     private var streamingDraftMessageIDs: Set<String> = []
+    var streamingTelemetry = StreamingTelemetry()
 
     var selectedModel: ModelPreset? {
         guard modelPresets.indices.contains(selectedModelIndex) else { return nil }
@@ -447,9 +470,15 @@ final class AppState {
 
     private func applySavedModelForCurrentSession() {
         guard let sessionID = currentSessionID else { return }
-        guard let saved = selectedModelIDBySessionID[sessionID] else { return }
-        guard let idx = modelPresets.firstIndex(where: { $0.id == saved }) else { return }
-        selectedModelIndex = idx
+        if let saved = selectedModelIDBySessionID[sessionID],
+           let idx = modelPresets.firstIndex(where: { $0.id == saved }) {
+            selectedModelIndex = idx
+            return
+        }
+        guard let first = modelPresets.first else { return }
+        selectedModelIndex = 0
+        selectedModelIDBySessionID[sessionID] = first.id
+        persistSelectedModelMap()
     }
 
     private func inferAndStoreModelForCurrentSessionIfMissing() {
@@ -462,6 +491,81 @@ final class AppState {
         selectedModelIndex = idx
         selectedModelIDBySessionID[sessionID] = modelPresets[idx].id
         persistSelectedModelMap()
+    }
+
+    private func applyModelPresets(_ presets: [ModelPreset]) {
+        modelPresets = presets.isEmpty ? Self.fallbackModelPresets : presets
+        if let sessionID = currentSessionID {
+            if let saved = selectedModelIDBySessionID[sessionID],
+               let idx = modelPresets.firstIndex(where: { $0.id == saved }) {
+                selectedModelIndex = idx
+            } else {
+                selectedModelIndex = 0
+                if let first = modelPresets.first {
+                    selectedModelIDBySessionID[sessionID] = first.id
+                    persistSelectedModelMap()
+                }
+            }
+        } else if !modelPresets.indices.contains(selectedModelIndex) {
+            selectedModelIndex = 0
+        }
+    }
+
+    private func buildModelPresets(from response: ProvidersResponse) -> [ModelPreset] {
+        var allByID: [String: ModelPreset] = [:]
+        allByID.reserveCapacity(64)
+
+        for provider in response.providers {
+            let providerID = provider.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !providerID.isEmpty else { continue }
+            for (modelKey, model) in provider.models {
+                let candidateModelID = model.id.isEmpty ? modelKey : model.id
+                let modelID = candidateModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !modelID.isEmpty else { continue }
+                let rawName = (model.name ?? modelID).trimmingCharacters(in: .whitespacesAndNewlines)
+                let displayName = rawName.isEmpty ? modelID : rawName
+                let preset = ModelPreset(displayName: displayName, providerID: providerID, modelID: modelID)
+                allByID[preset.id] = preset
+            }
+        }
+
+        guard !allByID.isEmpty else {
+            return Self.fallbackModelPresets
+        }
+
+        var orderedIDs: [String] = []
+        func appendPresetID(_ id: String?) {
+            guard let id else { return }
+            guard allByID[id] != nil else { return }
+            guard !orderedIDs.contains(id) else { return }
+            orderedIDs.append(id)
+        }
+
+        let defaults = response.default?.byProvider ?? [:]
+        for (providerID, modelID) in defaults.sorted(by: { $0.key < $1.key }) {
+            appendPresetID("\(providerID)/\(modelID)")
+        }
+
+        if let sessionID = currentSessionID {
+            appendPresetID(selectedModelIDBySessionID[sessionID])
+        }
+        appendPresetID(selectedModel?.id)
+
+        for fallback in Self.fallbackModelPresets {
+            appendPresetID(fallback.id)
+        }
+
+        let sortedRemainder = allByID.values.sorted { lhs, rhs in
+            if lhs.providerID != rhs.providerID { return lhs.providerID < rhs.providerID }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+        for preset in sortedRemainder {
+            appendPresetID(preset.id)
+        }
+
+        let capped = Array(orderedIDs.prefix(max(Self.maxToolbarModelPresets, 1)))
+        let picked = capped.compactMap { allByID[$0] }
+        return picked.isEmpty ? Self.fallbackModelPresets : picked
     }
 
     var currentSession: Session? {
@@ -536,6 +640,9 @@ final class AppState {
         // Generate new loading ID to invalidate any in-flight tasks from previous session
         let loadingID = UUID()
         sessionLoadingID = loadingID
+        scheduledMessageRefreshTask?.cancel()
+        scheduledMessageRefreshTask = nil
+        hasPendingScheduledMessageRefresh = false
         
         streamingReasoningPart = nil
         streamingPartTexts = [:]
@@ -863,8 +970,9 @@ final class AppState {
         }
         let tempMessageID = appendOptimisticUserMessage(text)
         let model = selectedModel.map { Message.ModelInfo(providerID: $0.providerID, modelID: $0.modelID) }
+        let agent = promptAgent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "build" : promptAgent.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            try await apiClient.promptAsync(sessionID: sessionID, text: text, model: model)
+            try await apiClient.promptAsync(sessionID: sessionID, text: text, agent: agent, model: model)
             return true
         } catch {
             sendError = error.localizedDescription
@@ -1011,6 +1119,9 @@ final class AppState {
     func disconnectSSE() {
         sseTask?.cancel()
         sseTask = nil
+        scheduledMessageRefreshTask?.cancel()
+        scheduledMessageRefreshTask = nil
+        hasPendingScheduledMessageRefresh = false
     }
     
     // Note: AppState is typically held for the app's lifetime (as @State in root view),
@@ -1027,6 +1138,138 @@ final class AppState {
     /// Async request result should only apply when requested session is still current.
     nonisolated static func shouldApplySessionScopedResult(requestedSessionID: String, currentSessionID: String?) -> Bool {
         requestedSessionID == currentSessionID
+    }
+
+    struct StreamingPartDelta: Equatable {
+        let sessionID: String
+        let messageID: String
+        let partID: String
+        let partType: String
+        let delta: String
+    }
+
+    nonisolated static func parseStreamingPartDelta(
+        properties props: [String: AnyCodable],
+        eventType: String
+    ) -> StreamingPartDelta? {
+        func clean(_ value: Any?) -> String? {
+            guard let raw = value as? String else { return nil }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        let partObj = props["part"]?.value as? [String: Any]
+        guard let sessionID = clean(props["sessionID"]?.value) else { return nil }
+        guard let messageID = clean(partObj?["messageID"]) ?? clean(props["messageID"]?.value) else { return nil }
+        guard let partID = clean(partObj?["id"]) ?? clean(props["partID"]?.value) else { return nil }
+        guard let delta = props["delta"]?.value as? String, !delta.isEmpty else { return nil }
+
+        var partType = clean(partObj?["type"])
+        if partType == nil {
+            let field = clean(props["field"]?.value)?.lowercased()
+            if field == "reasoning" || field == "reason" {
+                partType = "reasoning"
+            } else if field == "text" || field?.hasSuffix(".text") == true {
+                partType = "text"
+            }
+        }
+        if partType == nil, eventType == "message.part.delta" {
+            partType = "text"
+        }
+
+        guard let resolvedType = partType else { return nil }
+        return StreamingPartDelta(
+            sessionID: sessionID,
+            messageID: messageID,
+            partID: partID,
+            partType: resolvedType,
+            delta: delta
+        )
+    }
+
+    private func scheduleMessageRefresh(sessionID: String, includeDiff: Bool = true, delaySeconds: Double = 0.15) {
+        if hasPendingScheduledMessageRefresh {
+            streamingTelemetry.fullRefreshCancelled += 1
+        }
+        scheduledMessageRefreshTask?.cancel()
+        streamingTelemetry.fullRefreshScheduled += 1
+        hasPendingScheduledMessageRefresh = true
+        let refreshID = UUID()
+        scheduledMessageRefreshID = refreshID
+
+        scheduledMessageRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.scheduledMessageRefreshID == refreshID {
+                    self.hasPendingScheduledMessageRefresh = false
+                    self.scheduledMessageRefreshTask = nil
+                }
+            }
+
+            if delaySeconds > 0 {
+                try? await Task.sleep(for: .seconds(delaySeconds))
+            }
+            guard !Task.isCancelled else { return }
+            guard self.currentSessionID == sessionID else { return }
+            let startedAt = Date()
+            await self.loadMessages()
+            if includeDiff {
+                await self.loadSessionDiff()
+            }
+            let elapsedMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            self.streamingTelemetry.fullRefreshExecuted += 1
+            self.streamingTelemetry.fullRefreshTotalMs += elapsedMs
+            self.streamingTelemetry.fullRefreshLastMs = elapsedMs
+            self.streamingTelemetry.fullRefreshMaxMs = max(self.streamingTelemetry.fullRefreshMaxMs, elapsedMs)
+            self.streamingTelemetry.lastRefreshAt = Date()
+        }
+    }
+
+    private func noteStreamingDeltaEvent(eventType: String, at now: Date = Date()) {
+        if eventType == "message.part.delta" {
+            streamingTelemetry.deltaEventsTotal += 1
+        } else {
+            streamingTelemetry.updatedDeltaEventsTotal += 1
+        }
+
+        streamingTelemetry.lastDeltaAt = now
+        streamingDeltaEventTimes.append(now)
+
+        let cutoff = now.addingTimeInterval(-10)
+        streamingDeltaEventTimes.removeAll { $0 < cutoff }
+        streamingTelemetry.deltaEventsLast10s = streamingDeltaEventTimes.count
+        streamingTelemetry.deltaRatePerSecond = Double(streamingTelemetry.deltaEventsLast10s) / 10.0
+    }
+
+    private func applyStreamingPartDelta(_ payload: StreamingPartDelta) {
+        let key = "\(payload.messageID):\(payload.partID)"
+        let text = (streamingPartTexts[key] ?? "") + payload.delta
+        streamingPartTexts[key] = text
+
+        if payload.partType == "reasoning" {
+            streamingReasoningPart = Part(
+                id: payload.partID,
+                messageID: payload.messageID,
+                sessionID: payload.sessionID,
+                type: "reasoning",
+                text: nil,
+                tool: nil,
+                callID: nil,
+                state: nil,
+                metadata: nil,
+                files: nil
+            )
+        } else {
+            upsertStreamingMessage(
+                messageID: payload.messageID,
+                partID: payload.partID,
+                sessionID: payload.sessionID,
+                type: payload.partType,
+                text: text
+            )
+        }
+
+        refreshSessionActivityText(sessionID: payload.sessionID)
     }
 
     private func handleSSEEvent(_ event: SSEEvent) async {
@@ -1079,54 +1322,27 @@ final class AppState {
                 streamingReasoningPart = nil
                 streamingPartTexts = [:]
                 streamingDraftMessageIDs.removeAll()
-                await loadMessages()
-                await loadSessionDiff()
+                if let sessionID = eventSessionID ?? currentSessionID {
+                    scheduleMessageRefresh(sessionID: sessionID, includeDiff: true)
+                }
             }
-        case "message.part.updated":
+        case "message.part.updated", "message.part.delta":
             if let sessionID = props["sessionID"]?.value as? String,
                sessionID == currentSessionID {
-                let partObj = props["part"]?.value as? [String: Any]
-                let msgID = partObj?["messageID"] as? String
-                let partID = partObj?["id"] as? String
-                let partType = (partObj?["type"] as? String) ?? "text"
-
-                if let msgID,
-                   let partID {
-                    let key = "\(msgID):\(partID)"
-
-                    if let delta = props["delta"]?.value as? String,
-                       !delta.isEmpty {
-                        let text = (streamingPartTexts[key] ?? "") + delta
-                        streamingPartTexts[key] = text
-                        if partType == "reasoning" {
-                            streamingReasoningPart = Part(
-                                id: partID,
-                                messageID: msgID,
-                                sessionID: sessionID,
-                                type: "reasoning",
-                                text: nil,
-                                tool: nil,
-                                callID: nil,
-                                state: nil,
-                                metadata: nil,
-                                files: nil
-                            )
-                        } else {
-                            upsertStreamingMessage(
-                                messageID: msgID,
-                                partID: partID,
-                                sessionID: sessionID,
-                                type: partType,
-                                text: text
-                            )
-                        }
-
-                        refreshSessionActivityText(sessionID: sessionID)
-                    } else {
+                if let payload = Self.parseStreamingPartDelta(properties: props, eventType: type) {
+                    noteStreamingDeltaEvent(eventType: type)
+                    applyStreamingPartDelta(payload)
+                } else {
+                    let partObj = props["part"]?.value as? [String: Any]
+                    let msgID = (partObj?["messageID"] as? String) ?? (props["messageID"]?.value as? String)
+                    if let msgID {
                         clearStreamingState(messageID: msgID)
-                        await loadMessages()
-                        await loadSessionDiff()
+                    } else {
+                        streamingReasoningPart = nil
+                        streamingPartTexts = [:]
+                        streamingDraftMessageIDs.removeAll()
                     }
+                    scheduleMessageRefresh(sessionID: sessionID, includeDiff: true)
                 }
             }
         case "permission.asked":
@@ -1347,6 +1563,11 @@ final class AppState {
         }
     }
 
+    func resetStreamingTelemetry() {
+        streamingTelemetry = StreamingTelemetry()
+        streamingDeltaEventTimes = []
+    }
+
     func loadProvidersConfig() async {
         do {
             let resp = try await apiClient.providers()
@@ -1355,11 +1576,13 @@ final class AppState {
             var idx: [String: ProviderModel] = [:]
             for p in resp.providers {
                 for (modelID, m) in p.models {
-                    let key = "\(p.id)/\(modelID)"
+                    let resolvedModelID = m.id.isEmpty ? modelID : m.id
+                    let key = "\(p.id)/\(resolvedModelID)"
                     idx[key] = m
                 }
             }
             providerModelsIndex = idx
+            applyModelPresets(buildModelPresets(from: resp))
         } catch {
             providerConfigError = error.localizedDescription
         }
@@ -1399,5 +1622,25 @@ struct SessionActivity: Identifiable {
     func elapsedString(now: Date = Date()) -> String {
         let secs = elapsedSeconds(now: now)
         return String(format: "%d:%02d", secs / 60, secs % 60)
+    }
+}
+
+struct StreamingTelemetry {
+    var deltaEventsTotal: Int = 0
+    var updatedDeltaEventsTotal: Int = 0
+    var deltaEventsLast10s: Int = 0
+    var deltaRatePerSecond: Double = 0
+    var fullRefreshScheduled: Int = 0
+    var fullRefreshExecuted: Int = 0
+    var fullRefreshCancelled: Int = 0
+    var fullRefreshTotalMs: Int = 0
+    var fullRefreshLastMs: Int = 0
+    var fullRefreshMaxMs: Int = 0
+    var lastDeltaAt: Date? = nil
+    var lastRefreshAt: Date? = nil
+
+    var fullRefreshAverageMs: Int {
+        guard fullRefreshExecuted > 0 else { return 0 }
+        return fullRefreshTotalMs / fullRefreshExecuted
     }
 }

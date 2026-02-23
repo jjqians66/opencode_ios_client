@@ -144,6 +144,21 @@ struct OpenCodeClientTests {
         #expect((partObj?["id"] as? String) == "p1")
     }
 
+    @Test func sseEventMessagePartDelta() throws {
+        let json = """
+        {"payload":{"type":"message.part.delta","properties":{"sessionID":"s1","messageID":"m1","partID":"p1","field":"text","delta":"Hi"}}}
+        """
+        let data = json.data(using: .utf8)!
+        let event = try JSONDecoder().decode(SSEEvent.self, from: data)
+        #expect(event.payload.type == "message.part.delta")
+        let props = event.payload.properties ?? [:]
+        #expect((props["sessionID"]?.value as? String) == "s1")
+        #expect((props["messageID"]?.value as? String) == "m1")
+        #expect((props["partID"]?.value as? String) == "p1")
+        #expect((props["field"]?.value as? String) == "text")
+        #expect((props["delta"]?.value as? String) == "Hi")
+    }
+
     // Regression: Part.state can be String or object (ToolState); was causing loadMessages decode failure during thinking
     @Test func partDecodingWithStateAsString() throws {
         let partJson = """
@@ -247,6 +262,61 @@ struct SessionFilteringTests {
     }
 }
 
+// MARK: - Streaming Delta Parsing
+
+struct StreamingDeltaParsingTests {
+
+    @Test func parseStreamingPartDeltaFromUpdatedPayload() {
+        let props: [String: AnyCodable] = [
+            "sessionID": AnyCodable("s1"),
+            "delta": AnyCodable("Hello "),
+            "part": AnyCodable([
+                "id": "p1",
+                "messageID": "m1",
+                "type": "reasoning",
+            ]),
+        ]
+
+        let parsed = AppState.parseStreamingPartDelta(properties: props, eventType: "message.part.updated")
+        #expect(parsed != nil)
+        #expect(parsed?.sessionID == "s1")
+        #expect(parsed?.messageID == "m1")
+        #expect(parsed?.partID == "p1")
+        #expect(parsed?.partType == "reasoning")
+        #expect(parsed?.delta == "Hello ")
+    }
+
+    @Test func parseStreamingPartDeltaFromDeltaPayload() {
+        let props: [String: AnyCodable] = [
+            "sessionID": AnyCodable("s1"),
+            "messageID": AnyCodable("m1"),
+            "partID": AnyCodable("p1"),
+            "field": AnyCodable("text"),
+            "delta": AnyCodable("Hi"),
+        ]
+
+        let parsed = AppState.parseStreamingPartDelta(properties: props, eventType: "message.part.delta")
+        #expect(parsed != nil)
+        #expect(parsed?.sessionID == "s1")
+        #expect(parsed?.messageID == "m1")
+        #expect(parsed?.partID == "p1")
+        #expect(parsed?.partType == "text")
+        #expect(parsed?.delta == "Hi")
+    }
+
+    @Test func parseStreamingPartDeltaRejectsMissingDelta() {
+        let props: [String: AnyCodable] = [
+            "sessionID": AnyCodable("s1"),
+            "messageID": AnyCodable("m1"),
+            "partID": AnyCodable("p1"),
+            "field": AnyCodable("text"),
+        ]
+
+        let parsed = AppState.parseStreamingPartDelta(properties: props, eventType: "message.part.delta")
+        #expect(parsed == nil)
+    }
+}
+
 // MARK: - Message Pagination
 
 struct MessagePaginationTests {
@@ -310,6 +380,48 @@ struct ModelPresetTests {
         let data = json.data(using: .utf8)!
         let preset = try JSONDecoder().decode(ModelPreset.self, from: data)
         #expect(preset.id == "openai/gpt-4-turbo")
+    }
+}
+
+// MARK: - Providers Config Decoding Tests
+
+struct ProvidersConfigDecodingTests {
+
+    @Test func providersResponseDecodesDefaultAsDictionaryShape() throws {
+        let json = """
+        {
+          "providers": {},
+          "default": {
+            "openai": "gpt-4.1-mini",
+            "anthropic": "claude-sonnet-4"
+          }
+        }
+        """
+        let data = Data(json.utf8)
+        let response = try JSONDecoder().decode(ProvidersResponse.self, from: data)
+
+        #expect(response.default?.byProvider["openai"] == "gpt-4.1-mini")
+        #expect(response.default?.byProvider["anthropic"] == "claude-sonnet-4")
+        #expect(response.default?.providerID == "anthropic")
+        #expect(response.default?.modelID == "claude-sonnet-4")
+    }
+
+    @Test func providersResponseDecodesDefaultAsObjectShapeWithAliasKeys() throws {
+        let json = """
+        {
+          "providers": {},
+          "default": {
+            "providerId": "openai",
+            "modelId": "gpt-4.1"
+          }
+        }
+        """
+        let data = Data(json.utf8)
+        let response = try JSONDecoder().decode(ProvidersResponse.self, from: data)
+
+        #expect(response.default?.providerID == "openai")
+        #expect(response.default?.modelID == "gpt-4.1")
+        #expect(response.default?.byProvider == ["openai": "gpt-4.1"])
     }
 }
 
@@ -770,6 +882,72 @@ struct SpeechRecognitionDefaultsTests {
         // Restore defaults for other tests
         UserDefaults.standard.removeObject(forKey: "aiBuilderCustomPrompt")
         UserDefaults.standard.removeObject(forKey: "aiBuilderTerminology")
+    }
+}
+
+struct AppStateServerURLSecurityTests {
+
+    @Test func rejectWanHttpAddress() {
+        let info = AppState.serverURLInfo("http://example.com:4096")
+        #expect(info.isLocal == false)
+        #expect(info.isAllowed == false)
+        #expect(info.warning == L10n.t(.errorWanRequiresHttps))
+    }
+
+    @Test func allowWanHttpsAddress() {
+        let info = AppState.serverURLInfo("https://example.com:4096")
+        #expect(info.isLocal == false)
+        #expect(info.isAllowed == true)
+        #expect(info.normalized == "https://example.com:4096")
+    }
+
+    @Test func defaultToHttpsForWanWithoutScheme() {
+        let info = AppState.serverURLInfo("example.com:4096")
+        #expect(info.isLocal == false)
+        #expect(info.isAllowed == true)
+        #expect(info.normalized == "https://example.com:4096")
+    }
+
+    @Test func allowLanHttpAddress() {
+        let info = AppState.serverURLInfo("127.0.0.1:4096")
+        #expect(info.isLocal == true)
+        #expect(info.isAllowed == true)
+        #expect(info.normalized == "http://127.0.0.1:4096")
+        #expect(info.warning == L10n.t(.errorUsingLanHttp))
+    }
+}
+
+struct SpeechRecognitionSecurityTests {
+
+    @Test @MainActor func speechRecognitionBaseURLDefaultsToEmpty() async {
+        let key = "aiBuilderBaseURL"
+        let previous = UserDefaults.standard.string(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
+        UserDefaults.standard.removeObject(forKey: key)
+        let state = AppState()
+        #expect(state.aiBuilderBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    @Test func aiBuildersConnectionRejectsEmptyBaseURL() async {
+        do {
+            try await AIBuildersAudioClient.testConnection(baseURL: "   ", token: "test-token")
+            Issue.record("Expected invalidBaseURL error")
+        } catch let error as AIBuildersAudioError {
+            if case .invalidBaseURL = error {
+                #expect(Bool(true))
+            } else {
+                Issue.record("Expected invalidBaseURL error")
+            }
+        } catch {
+            Issue.record("Expected AIBuildersAudioError.invalidBaseURL")
+        }
     }
 }
 
